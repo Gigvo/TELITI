@@ -30,15 +30,15 @@ from api.constants import (
     STUB_MODEL_VERSION,
     TOP_K_SENTENCE_EVIDENCE,
 )
+from api.ingest import ingest
+from api.rules.engine import default_engine
 from api.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
     ErrorResponse,
-    ExtractedFields,
     HealthResponse,
     Polarity,
     RiskLabel,
-    RuleCategory,
     RuleHit,
     SentenceEvidence,
     Span,
@@ -50,14 +50,21 @@ log = logging.getLogger("teliti")
 MODEL_LOADED = False
 THRESHOLDS_LOADED = False
 
+#: The rule layer is REAL as of step 1.4 — ingest, rules and extracted fields are
+#: all production code. Only `model_probability` is still synthetic.
+_RULE_ENGINE = default_engine()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not MODEL_LOADED:
         log.warning(
-            "TELITI is running the DAY-1 STUB. Scores are synthetic and mean nothing. "
-            "Do not screenshot this for the pitch."
+            "TELITI text model is STUBBED — model_probability is synthetic and means "
+            "nothing. Do not screenshot the score for the pitch. (The rule layer is "
+            "real; rule_hits and extracted_fields can be trusted.)"
         )
+    if _RULE_ENGINE.pending_features:
+        log.info("Rule slots awaiting step 2.4: %s", ", ".join(_RULE_ENGINE.pending_features))
     yield
 
 
@@ -122,9 +129,6 @@ _STUB_RISK_KEYWORDS = (
 # merges every unpunctuated line into its neighbour.
 # Note this still splits "Rp9.000.000" safely: those dots have no whitespace after.
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
-_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
-_URL_RE = re.compile(r"https?://\S+|www\.\S+")
-_PHONE_RE = re.compile(r"(?:\+62|62|0)8[1-9][0-9]{6,11}")
 
 
 def _stub_probability(text: str) -> float:
@@ -182,63 +186,12 @@ def _stub_sentence_evidence(text: str) -> list[SentenceEvidence]:
     return scored[:TOP_K_SENTENCE_EVIDENCE]
 
 
-def _stub_rule_hits(text: str) -> list[RuleHit]:
-    """Two illustrative rules so the frontend has real-shaped cards to render.
+def _summary(score: int, label: RiskLabel, rule_hits: list[RuleHit]) -> str:
+    """Narrative explanation. Replaced by the XAI composer in step 3.4.
 
-    The real implementations land in api/rules/ on Days 1-2 (steps 1.4 and 2.4).
+    Still prefixed [STUB] because the SCORE it quotes is synthetic — the rule
+    reasons it lists are real.
     """
-    hits: list[RuleHit] = []
-    lowered = text.lower()
-
-    free_providers = ("@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com")
-    for email in _EMAIL_RE.findall(text):
-        if any(email.lower().endswith(p) for p in free_providers):
-            start = text.find(email)
-            hits.append(
-                RuleHit(
-                    rule_id="email_free_provider",
-                    category=RuleCategory.COMPANY,
-                    label_id="Kontak memakai email gratis, bukan domain perusahaan",
-                    label_en="Contact uses a free email provider, not a company domain",
-                    severity=0.6,
-                    contribution=12.0,
-                    evidence=email,
-                    span=Span(start=start, end=start + len(email)),
-                )
-            )
-            break
-
-    for phrase in ("biaya administrasi", "biaya pelatihan", "uang jaminan"):
-        if phrase in lowered:
-            start = lowered.find(phrase)
-            hits.append(
-                RuleHit(
-                    rule_id="payment_request_id",
-                    category=RuleCategory.LANGUAGE,
-                    label_id="Meminta pembayaran di awal proses rekrutmen",
-                    label_en="Requests an up-front payment during recruitment",
-                    severity=0.9,
-                    contribution=15.0,
-                    evidence=text[start : start + len(phrase)],
-                    span=Span(start=start, end=start + len(phrase)),
-                )
-            )
-            break
-
-    return hits
-
-
-def _stub_extracted_fields(text: str) -> ExtractedFields:
-    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
-    return ExtractedFields(
-        title=lines[0][:120] if lines else None,
-        emails=_EMAIL_RE.findall(text),
-        urls=_URL_RE.findall(text),
-        phones=_PHONE_RE.findall(text),
-    )
-
-
-def _stub_summary(score: int, label: RiskLabel, rule_hits: list[RuleHit]) -> str:
     if rule_hits:
         reasons = "; ".join(h.label_id.lower() for h in rule_hits)
         return (
@@ -275,20 +228,26 @@ async def health() -> HealthResponse:
 async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     started = time.perf_counter()
 
+    # Real: ingest + rule layer (step 1.4).
+    ingested = ingest(payload.text)
+    evaluation = _RULE_ENGINE.evaluate(ingested)
+    rule_hits = evaluation.to_rule_hits()
+
+    # Still synthetic: the text model (step 2.5) and the fusion (step 4.1).
+    # Score is therefore model-only; rule severities do not yet move it.
     probability = _stub_probability(payload.text)
     score = round((1.0 - probability) * 100)
     label = _label_for(score)
-    rule_hits = _stub_rule_hits(payload.text)
 
     return AnalyzeResponse(
         integrity_score=score,
         risk_label=label,
         model_probability=round(probability, 4),
         fused_probability=round(probability, 4),
-        summary=_stub_summary(score, label, rule_hits),
+        summary=_summary(score, label, rule_hits),
         sentence_evidence=_stub_sentence_evidence(payload.text),
         rule_hits=rule_hits,
-        extracted_fields=_stub_extracted_fields(payload.text),
+        extracted_fields=ingested.fields,
         request_id=str(uuid.uuid4()),
         model_version=STUB_MODEL_VERSION,
         latency_ms=int((time.perf_counter() - started) * 1000),
