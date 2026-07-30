@@ -1,0 +1,12 @@
+[project]
+name = "teliti"
+version = "0.1.0"
+description = "AI platform scoring job-ad integrity to protect jobseekers from scams and ghost jobs"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+# Lets tests do `from api.schemas import ...` without an editable install.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:api.*", "error::UserWarning:api.*"]
