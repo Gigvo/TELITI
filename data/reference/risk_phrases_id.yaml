@@ -1,0 +1,144 @@
+# Indonesian risk-phrase lexicon — MVP_PLAN.md steps 1.5 / 2.4
+#
+# Feeds two rules:
+#   - payment_request_id     phrases in the `payment` group (its own feature: an
+#                            employer asking a candidate for money is the single
+#                            most reliable marker in Indonesian scam reporting)
+#   - risk_phrase_score_id   every other group, aggregated
+#
+# HOW TO EXTEND THIS FILE
+# Annotators: while labelling eval/indonesian_holdout.jsonl, add every suspicious
+# phrase you meet. The lexicon is meant to be a BY-PRODUCT of annotation, which is
+# why annotation starts on day 1 (concept paper section 3.2).
+#
+# WEIGHTS are 0..1 and express how strongly a phrase alone indicates fraud:
+#   0.9-1.0  near-conclusive on its own ("transfer biaya administrasi")
+#   0.6-0.8  strong, but appears in legitimate ads occasionally
+#   0.3-0.5  suggestive; meaningful only alongside others
+#   0.1-0.2  weak; common in ordinary marketing language
+#
+# BE CONSERVATIVE. Every weight here is a chance to flag a real company. Section 3.6
+# makes suppressing false positives an explicit requirement, and the aggregate rule
+# saturates, so a pile of weak phrases cannot manufacture a high score.
+
+version: "1.0.0"
+
+groups:
+
+  # -------------------------------------------------------------------------
+  # payment — drives `payment_request_id`
+  # A genuine employer NEVER asks a candidate for money. Bareskrim's cases
+  # (concept paper section 1.1) centre on exactly this.
+  # -------------------------------------------------------------------------
+  payment:
+    weight_multiplier: 1.0
+    phrases:
+      - {text: "biaya administrasi", weight: 0.95}
+      - {text: "biaya admin", weight: 0.90}
+      - {text: "biaya pendaftaran", weight: 0.90}
+      - {text: "biaya pelatihan", weight: 0.90}
+      - {text: "biaya training", weight: 0.90}
+      - {text: "biaya seragam", weight: 0.85}
+      - {text: "biaya kaos", weight: 0.80}
+      - {text: "biaya materai", weight: 0.75}
+      - {text: "uang jaminan", weight: 0.95}
+      - {text: "uang muka", weight: 0.70}
+      - {text: "deposit", weight: 0.55}
+      - {text: "transfer ke rekening", weight: 0.85}
+      - {text: "wajib transfer", weight: 0.90}
+      - {text: "kirim uang", weight: 0.85}
+      - {text: "bayar dulu", weight: 0.85}
+      - {text: "dp dulu", weight: 0.80}
+      - {text: "biaya akomodasi ditanggung peserta", weight: 0.80}
+      - {text: "uang pendaftaran", weight: 0.90}
+      - {text: "potong gaji pertama", weight: 0.60}
+
+  # -------------------------------------------------------------------------
+  # urgency — manufactured time pressure to prevent verification
+  # -------------------------------------------------------------------------
+  urgency:
+    weight_multiplier: 0.7
+    phrases:
+      - {text: "kuota terbatas", weight: 0.55}
+      - {text: "buruan daftar", weight: 0.50}
+      - {text: "segera hubungi", weight: 0.30}
+      - {text: "hari ini saja", weight: 0.55}
+      - {text: "slot terbatas", weight: 0.55}
+      - {text: "jangan sampai kehabisan", weight: 0.50}
+      - {text: "langsung kerja", weight: 0.45}
+      - {text: "tanpa tes", weight: 0.60}
+      - {text: "tanpa interview", weight: 0.70}
+      - {text: "langsung diterima", weight: 0.70}
+      - {text: "diterima tanpa seleksi", weight: 0.80}
+
+  # -------------------------------------------------------------------------
+  # unrealistic_offer — compensation or conditions too good to be real
+  # -------------------------------------------------------------------------
+  unrealistic_offer:
+    weight_multiplier: 0.8
+    phrases:
+      - {text: "penghasilan tak terbatas", weight: 0.80}
+      - {text: "penghasilan tidak terbatas", weight: 0.80}
+      - {text: "gaji besar", weight: 0.40}
+      - {text: "gaji fantastis", weight: 0.70}
+      - {text: "gaji harian", weight: 0.45}
+      - {text: "cair setiap hari", weight: 0.60}
+      - {text: "kerja santai", weight: 0.50}
+      - {text: "kerja dari rumah", weight: 0.25}
+      - {text: "cukup pakai hp", weight: 0.65}
+      - {text: "modal hp saja", weight: 0.70}
+      - {text: "kerja 2 jam", weight: 0.55}
+      - {text: "tanpa pengalaman", weight: 0.30}
+      - {text: "tanpa skill", weight: 0.50}
+      - {text: "semua umur", weight: 0.35}
+      - {text: "bonus melimpah", weight: 0.55}
+
+  # -------------------------------------------------------------------------
+  # data_harvesting — identity documents demanded before any real process
+  # Directly tied to the TPPO cases in concept paper section 1.1.
+  # -------------------------------------------------------------------------
+  data_harvesting:
+    weight_multiplier: 0.9
+    phrases:
+      - {text: "foto ktp", weight: 0.70}
+      - {text: "fotokopi ktp", weight: 0.60}
+      - {text: "scan ktp", weight: 0.65}
+      - {text: "kirim ktp", weight: 0.70}
+      - {text: "kartu keluarga", weight: 0.55}
+      - {text: "foto selfie dengan ktp", weight: 0.85}
+      - {text: "nomor rekening", weight: 0.60}
+      - {text: "data diri lengkap", weight: 0.35}
+      - {text: "kirim npwp", weight: 0.45}
+      - {text: "serahkan ijazah asli", weight: 0.80}
+      - {text: "ijazah ditahan", weight: 0.85}
+
+  # -------------------------------------------------------------------------
+  # informal_process — recruitment that avoids any accountable channel
+  # -------------------------------------------------------------------------
+  informal_process:
+    weight_multiplier: 0.7
+    phrases:
+      - {text: "hubungi admin", weight: 0.45}
+      - {text: "chat admin", weight: 0.45}
+      - {text: "japri", weight: 0.40}
+      - {text: "interview via chat", weight: 0.70}
+      - {text: "wawancara via chat", weight: 0.70}
+      - {text: "interview online singkat", weight: 0.40}
+      - {text: "tidak perlu cv", weight: 0.60}
+      - {text: "tanpa cv", weight: 0.55}
+      - {text: "cukup kirim nama", weight: 0.65}
+
+  # -------------------------------------------------------------------------
+  # mlm_recruitment — network marketing dressed as employment
+  # Not a scam in the criminal sense, but misrepresented as a salaried job.
+  # -------------------------------------------------------------------------
+  mlm_recruitment:
+    weight_multiplier: 0.6
+    phrases:
+      - {text: "bisnis online", weight: 0.35}
+      - {text: "passive income", weight: 0.50}
+      - {text: "join tim kami", weight: 0.35}
+      - {text: "peluang usaha", weight: 0.40}
+      - {text: "member baru", weight: 0.45}
+      - {text: "rekrut downline", weight: 0.80}
+      - {text: "sistem referral", weight: 0.45}

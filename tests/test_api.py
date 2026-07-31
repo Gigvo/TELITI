@@ -91,9 +91,13 @@ def test_spans_index_into_the_original_text(client, scam_text):
         assert evidence.span is not None
         assert scam_text[evidence.span.start : evidence.span.end] == evidence.text
 
+    # A rule's `evidence` is a human-readable explanation and may be a comparison
+    # rather than a quotation ("Gaji ... setara 4.0x upah minimum ..."). Only the
+    # SPAN must address the raw text, because that is what the frontend slices.
     for hit in parsed.rule_hits:
         if hit.span is not None:
-            assert scam_text[hit.span.start : hit.span.end] == hit.evidence
+            assert 0 <= hit.span.start < hit.span.end <= len(scam_text)
+            assert scam_text[hit.span.start : hit.span.end].strip()
 
 
 def test_rule_hits_are_well_formed(client, scam_text):

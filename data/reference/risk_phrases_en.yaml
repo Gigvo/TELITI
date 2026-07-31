@@ -1,0 +1,160 @@
+# English risk-phrase lexicon — locale `en`
+#
+# Mirrors the structure of risk_phrases_id.yaml. Same groups, same weight scale, so
+# the rules are locale-agnostic and only the data differs.
+#
+# GROUNDING: several phrases here are taken from terms the TF-IDF baseline actually
+# learned as fraud-predictive on EMSCAD (see eval/baseline_results.md) — `money`,
+# `from home`, `earn`, `income`, `high school`, `data entry`. Those are empirical,
+# not guessed.
+#
+# DELIBERATELY EXCLUDED: `subsea`, `offshore`, `below link`, `apply using`. The
+# baseline weighted these highly, but they are artefacts of one 2017 oil-and-gas scam
+# campaign in EMSCAD (`subsea` appears in 28 training documents, 96.4% fraudulent).
+# Encoding them here would bake a specific historical campaign into the product and
+# flag legitimate energy-sector recruiters forever.
+#
+# WEIGHTS are 0..1, same convention as the Indonesian file:
+#   0.9-1.0  near-conclusive alone     0.6-0.8  strong
+#   0.3-0.5  suggestive                0.1-0.2  weak, common in ordinary ads
+#
+# Be conservative. Every weight is a chance to flag a real employer.
+
+version: "1.0.0"
+locale: "en"
+
+groups:
+
+  # -------------------------------------------------------------------------
+  # payment — drives `payment_request_id`
+  # A genuine employer never asks a candidate for money. Universal across locales.
+  # -------------------------------------------------------------------------
+  payment:
+    weight_multiplier: 1.0
+    phrases:
+      - {text: "administration fee", weight: 0.95}
+      - {text: "administrative fee", weight: 0.95}
+      - {text: "processing fee", weight: 0.90}
+      - {text: "registration fee", weight: 0.90}
+      - {text: "application fee", weight: 0.90}
+      - {text: "training fee", weight: 0.85}
+      - {text: "onboarding fee", weight: 0.85}
+      - {text: "security deposit", weight: 0.90}
+      - {text: "refundable deposit", weight: 0.85}
+      - {text: "upfront payment", weight: 0.90}
+      - {text: "pay upfront", weight: 0.90}
+      - {text: "wire transfer", weight: 0.75}
+      - {text: "send money", weight: 0.85}
+      - {text: "western union", weight: 0.85}
+      - {text: "money gram", weight: 0.85}
+      - {text: "moneygram", weight: 0.85}
+      - {text: "gift card", weight: 0.85}
+      - {text: "bitcoin", weight: 0.60}
+      - {text: "cryptocurrency payment", weight: 0.70}
+      - {text: "cover the cost of", weight: 0.45}
+      - {text: "purchase your own equipment", weight: 0.60}
+      - {text: "buy starter kit", weight: 0.80}
+      - {text: "starter kit", weight: 0.55}
+
+  # -------------------------------------------------------------------------
+  # urgency — manufactured time pressure to prevent verification
+  # -------------------------------------------------------------------------
+  urgency:
+    weight_multiplier: 0.7
+    phrases:
+      - {text: "limited slots", weight: 0.55}
+      - {text: "limited positions", weight: 0.50}
+      - {text: "apply immediately", weight: 0.35}
+      - {text: "start immediately", weight: 0.35}
+      - {text: "urgent hiring", weight: 0.45}
+      - {text: "urgently needed", weight: 0.45}
+      - {text: "today only", weight: 0.60}
+      - {text: "act now", weight: 0.60}
+      - {text: "don't miss out", weight: 0.50}
+      - {text: "first come first served", weight: 0.50}
+      - {text: "no interview", weight: 0.70}
+      - {text: "no interview required", weight: 0.80}
+      - {text: "hired on the spot", weight: 0.65}
+      - {text: "instant approval", weight: 0.70}
+      - {text: "guaranteed placement", weight: 0.75}
+
+  # -------------------------------------------------------------------------
+  # unrealistic_offer — compensation or conditions too good to be real
+  # `from home`, `earn`, `income` are baseline-learned terms.
+  # -------------------------------------------------------------------------
+  unrealistic_offer:
+    weight_multiplier: 0.8
+    phrases:
+      - {text: "unlimited earning", weight: 0.80}
+      - {text: "unlimited income", weight: 0.80}
+      - {text: "earn up to", weight: 0.45}
+      - {text: "easy money", weight: 0.75}
+      - {text: "quick money", weight: 0.75}
+      - {text: "make money fast", weight: 0.80}
+      - {text: "work from home", weight: 0.20}
+      - {text: "work from anywhere", weight: 0.25}
+      - {text: "no experience necessary", weight: 0.40}
+      - {text: "no experience required", weight: 0.40}
+      - {text: "no skills required", weight: 0.55}
+      - {text: "anyone can do", weight: 0.60}
+      - {text: "just a few hours", weight: 0.55}
+      - {text: "2 hours a day", weight: 0.60}
+      - {text: "weekly payout", weight: 0.40}
+      - {text: "daily payout", weight: 0.55}
+      - {text: "paid daily", weight: 0.50}
+      - {text: "be your own boss", weight: 0.60}
+      - {text: "financial freedom", weight: 0.60}
+
+  # -------------------------------------------------------------------------
+  # data_harvesting — identity documents demanded before any real process
+  # -------------------------------------------------------------------------
+  data_harvesting:
+    weight_multiplier: 0.9
+    phrases:
+      - {text: "social security number", weight: 0.75}
+      - {text: "ssn", weight: 0.60}
+      - {text: "copy of your passport", weight: 0.70}
+      - {text: "photo of your id", weight: 0.70}
+      - {text: "scan of your id", weight: 0.70}
+      - {text: "copy of your driver's license", weight: 0.65}
+      - {text: "bank account details", weight: 0.75}
+      - {text: "bank account number", weight: 0.75}
+      - {text: "routing number", weight: 0.70}
+      - {text: "credit card details", weight: 0.85}
+      - {text: "mother's maiden name", weight: 0.80}
+      - {text: "selfie holding your id", weight: 0.85}
+
+  # -------------------------------------------------------------------------
+  # informal_process — recruitment that avoids any accountable channel
+  # -------------------------------------------------------------------------
+  informal_process:
+    weight_multiplier: 0.7
+    phrases:
+      - {text: "interview via telegram", weight: 0.85}
+      - {text: "interview on telegram", weight: 0.85}
+      - {text: "interview via whatsapp", weight: 0.55}
+      - {text: "interview via chat", weight: 0.70}
+      - {text: "text me for details", weight: 0.55}
+      - {text: "contact the admin", weight: 0.50}
+      - {text: "no cv required", weight: 0.60}
+      - {text: "no resume required", weight: 0.60}
+      - {text: "no resume needed", weight: 0.60}
+      - {text: "just send your name", weight: 0.65}
+      - {text: "google hangouts interview", weight: 0.70}
+
+  # -------------------------------------------------------------------------
+  # mlm_recruitment — network marketing dressed as employment
+  # -------------------------------------------------------------------------
+  mlm_recruitment:
+    weight_multiplier: 0.6
+    phrases:
+      - {text: "passive income", weight: 0.55}
+      - {text: "residual income", weight: 0.60}
+      - {text: "join our team today", weight: 0.35}
+      - {text: "business opportunity", weight: 0.45}
+      - {text: "recruit others", weight: 0.65}
+      - {text: "downline", weight: 0.80}
+      - {text: "network marketing", weight: 0.60}
+      - {text: "multi level marketing", weight: 0.75}
+      - {text: "referral commission", weight: 0.40}
+      - {text: "ground floor opportunity", weight: 0.65}

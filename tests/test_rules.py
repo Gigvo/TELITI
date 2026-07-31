@@ -391,14 +391,14 @@ def test_feature_vector_matches_the_canonical_order():
     assert vector.dtype == np.float64
 
 
-def test_pending_features_are_exactly_the_day_2_rules():
-    """Becomes empty when step 2.4 lands. This test is the completion check."""
-    assert set(default_engine().pending_features) == {
-        "qualification_conflict",
-        "salary_implausible_vs_umk",
-        "risk_phrase_score_id",
-        "payment_request_id",
-    }
+def test_no_feature_slots_remain_pending():
+    """Step 2.4 landed: every slot in RULE_FEATURE_ORDER now has a rule.
+
+    Previously this asserted which four were still missing; that was the progress
+    marker. Now emptiness is the invariant — a new feature added to the contract
+    without a rule to fill it will fail here.
+    """
+    assert default_engine().pending_features == ()
 
 
 def test_engine_rejects_two_rules_owning_one_feature():

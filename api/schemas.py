@@ -119,9 +119,18 @@ class RuleHit(BaseModel):
     """One deterministic rule that fired.
 
     `contribution` is in SCORE POINTS (0-100 scale) and signed the way a user reads
-    it: positive means it pushed the integrity score DOWN. Learned rules get theirs
-    from the fusion model's coefficients; penalty rules get theirs from their capped
-    additive term.
+    it: positive means it pushed the integrity score DOWN.
+
+    `evidence` and `span` are deliberately independent:
+
+    - `evidence` is what we SHOW. It may be a narrative sentence explaining the
+      finding ("Gaji Rp9.000.000 setara 4.0x upah minimum Yogyakarta...") because
+      the useful explanation is often a comparison, not a quotation.
+    - `span` is what we HIGHLIGHT — offsets into the raw submitted text. The
+      frontend slices the user's own string with it.
+
+    An earlier version conflated them, which broke highlighting the moment a rule
+    wanted to say more than it could quote.
     """
 
     model_config = _BASE
@@ -132,8 +141,14 @@ class RuleHit(BaseModel):
     label_en: str = Field(description="Human-readable label, English.")
     severity: float = Field(ge=0.0, le=1.0)
     contribution: float = Field(description="Score points removed by this rule.")
-    evidence: str = Field(description="The exact text fragment that triggered it.")
-    span: Optional[Span] = None
+    evidence: str = Field(
+        description="Human-readable explanation. NOT guaranteed to be a literal "
+        "substring of the input — use `span` for highlighting."
+    )
+    span: Optional[Span] = Field(
+        default=None,
+        description="Offsets into the RAW submitted text, for highlighting in place.",
+    )
 
 
 class ExtractedFields(BaseModel):
@@ -172,6 +187,11 @@ class AnalyzeRequest(BaseModel):
     )
     source_channel: Optional[SourceChannel] = None
     profile: InferenceProfile = InferenceProfile.TEXT_ONLY
+    locale: Optional[str] = Field(
+        default=None,
+        description="Force a language ('en' or 'id') instead of auto-detecting. "
+        "Ignored if that locale has no resources installed.",
+    )
 
 
 class AnalyzeResponse(BaseModel):
@@ -193,6 +213,16 @@ class AnalyzeResponse(BaseModel):
     rule_hits: list[RuleHit] = Field(default_factory=list)
     extracted_fields: ExtractedFields = Field(default_factory=ExtractedFields)
 
+    locale: str = Field(description="Language the rule layer scored with ('en' / 'id').")
+    locale_detected: str = Field(description="Language auto-detected from the text.")
+    unassessed_rules: list[str] = Field(
+        default_factory=list,
+        description="Rules that could NOT be evaluated — because the active locale "
+        "lacks the resource they need, or the source redacted the evidence. These "
+        "are not 'clean': the signal was never checked. Surface them, so a partial "
+        "analysis is never mistaken for a complete one.",
+    )
+
     disclaimer: str = DISCLAIMER_ID
     privacy_note: str = PRIVACY_NOTE_ID
 
@@ -211,6 +241,16 @@ class HealthResponse(BaseModel):
         "be run with this False."
     )
     thresholds_loaded: bool
+    locales_available: list[str] = Field(
+        default_factory=list,
+        description="Locales with enough installed resources to be usable. Drop the "
+        "Indonesian reference files into data/reference/ and 'id' appears here on "
+        "next start — no code change needed.",
+    )
+    locale_resources: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Per locale, which expected resource files are MISSING.",
+    )
 
 
 class ErrorResponse(BaseModel):

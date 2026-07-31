@@ -28,9 +28,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from api.ingest import IngestResult
+from api.locale import Locale
 from api.rules.base import Rule, RuleOutcome
 from api.rules.contact_channel import ContactChannelRule
 from api.rules.email_domain import EmailDomainRule
+from api.rules.qualification import QualificationConflictRule
+from api.rules.risk_phrases import RiskPhraseRule
+from api.rules.salary import SalarySanityRule
 from api.schemas import RuleHit
 from ml.feature_contract import (
     RULE_FEATURE_ORDER,
@@ -175,10 +179,22 @@ class RuleEngine:
         return RuleEvaluation(outcomes=outcomes)
 
 
-def default_engine() -> RuleEngine:
-    """The rule set as it stands today.
+def default_engine(locale: "Locale | None" = None) -> RuleEngine:
+    """The complete rule set (step 2.4).
 
-    Step 2.4 adds SalarySanityRule, QualificationConflictRule and RiskPhraseRule,
-    at which point `pending_features` becomes empty.
+    All nine slots of RULE_FEATURE_ORDER are filled, so `pending_features` is empty —
+    that is the completion check, asserted in tests/test_rules.py.
+
+    `locale` pins every locale-aware rule to one language. Leave it None for
+    per-request auto-detection, which is what the API does. Pinning is useful for
+    evaluation, where the corpus language is known and detection would add noise.
     """
-    return RuleEngine([EmailDomainRule(), ContactChannelRule()])
+    return RuleEngine(
+        [
+            EmailDomainRule(),
+            ContactChannelRule(),
+            QualificationConflictRule(),
+            SalarySanityRule(locale),
+            RiskPhraseRule(locale),
+        ]
+    )

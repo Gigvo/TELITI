@@ -31,6 +31,7 @@ from api.constants import (
     TOP_K_SENTENCE_EVIDENCE,
 )
 from api.ingest import ingest
+from api.locale import detect_language, load_registry
 from api.rules.engine import default_engine
 from api.schemas import (
     AnalyzeRequest,
@@ -65,6 +66,16 @@ async def lifespan(app: FastAPI):
         )
     if _RULE_ENGINE.pending_features:
         log.info("Rule slots awaiting step 2.4: %s", ", ".join(_RULE_ENGINE.pending_features))
+
+    registry = load_registry()
+    log.info("Locales available: %s", ", ".join(registry.available()) or "none")
+    for code, locale in sorted(registry.locales.items()):
+        if locale.missing:
+            log.warning(
+                "Locale %r missing %s — its rules will report themselves unassessed. "
+                "Drop the file(s) into data/reference/ to enable it.",
+                code, ", ".join(locale.missing),
+            )
     yield
 
 
@@ -211,11 +222,16 @@ def _summary(score: int, label: RiskLabel, rule_hits: list[RuleHit]) -> str:
 
 @app.get("/health", response_model=HealthResponse, tags=["ops"])
 async def health() -> HealthResponse:
+    registry = load_registry()
     return HealthResponse(
         status="ok",
         model_version=STUB_MODEL_VERSION,
         model_loaded=MODEL_LOADED,
         thresholds_loaded=THRESHOLDS_LOADED,
+        locales_available=list(registry.available()),
+        locale_resources={
+            code: list(locale.missing) for code, locale in sorted(registry.locales.items())
+        },
     )
 
 
@@ -228,9 +244,12 @@ async def health() -> HealthResponse:
 async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     started = time.perf_counter()
 
-    # Real: ingest + rule layer (step 1.4).
+    # Real: locale resolution + ingest + rule layer (steps 1.4 / 2.4).
+    locale = load_registry().resolve(payload.text, payload.locale)
+    engine = default_engine(locale)
+
     ingested = ingest(payload.text)
-    evaluation = _RULE_ENGINE.evaluate(ingested)
+    evaluation = engine.evaluate(ingested)
     rule_hits = evaluation.to_rule_hits()
 
     # Still synthetic: the text model (step 2.5) and the fusion (step 4.1).
@@ -248,6 +267,9 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         sentence_evidence=_stub_sentence_evidence(payload.text),
         rule_hits=rule_hits,
         extracted_fields=ingested.fields,
+        locale=locale.code,
+        locale_detected=detect_language(payload.text),
+        unassessed_rules=list(evaluation.unavailable_features),
         request_id=str(uuid.uuid4()),
         model_version=STUB_MODEL_VERSION,
         latency_ms=int((time.perf_counter() - started) * 1000),
