@@ -113,6 +113,14 @@ FORBIDDEN_MODEL_COLUMNS: dict[str, frozenset[str]] = {
 #: geography as a fraud proxy, which does not transfer to Indonesia at all.
 RULE_ONLY_COLUMNS: frozenset[str] = frozenset({"location"})
 
+#: Bookkeeping columns a prepared frame legitimately carries. They are NOT model
+#: inputs: `job_id` identifies a row for split tracking and reproducibility,
+#: `fraudulent` is the target, `text` is the vetted document, `n_words` is a stat.
+#: `assert_no_forbidden_columns` is about what reaches the MODEL, so these are
+#: excluded before the check — otherwise the identifier trips the guard meant to
+#: catch platform metadata.
+BOOKKEEPING_COLUMNS: frozenset[str] = frozenset({"job_id", "text", "n_words", LABEL_COLUMN})
+
 
 # ---------------------------------------------------------------------------
 # Rule feature vector
@@ -124,45 +132,87 @@ RULE_ONLY_COLUMNS: frozenset[str] = frozenset({"location"})
 # feature and the product breaks in a way that no test of either half will catch.
 # Both sides import RULE_FEATURE_ORDER from here. Never reorder in place — append.
 
-#: Rule signals we EXPECT to be learnable from EMSCAD, so the fusion model
-#: estimates their weights from data rather than us picking numbers by hand.
-#:
-#: ⚠️ VERIFY ON DAY 1 (step 1.2). EMSCAD anonymises emails and URLs inside the
-#: description text, replacing them with `#EMAIL_<hash>#` and `#URL_<hash>#`
-#: placeholders. If that is true of this copy of the data, then email-domain
-#: signals are NOT derivable from EMSCAD, and these features must be demoted to
-#: the bounded-penalty bucket below. `verify_emscad_derivability()` measures this
-#: instead of assuming it — do not skip that check.
-LEARNED_RULE_FEATURES: tuple[str, ...] = (
+#: ORDER IS LOAD-BEARING and is declared explicitly rather than derived from the
+#: buckets below, so that reclassifying a feature never silently permutes the
+#: vector the fusion model indexes positionally. Append only; never reorder.
+RULE_FEATURE_ORDER: tuple[str, ...] = (
     "email_free_provider",
     "email_absent",
     "email_domain_mismatch",
     "contact_messaging_only",
     "qualification_conflict",
     "url_shortener",
-)
-
-#: Indonesia-specific signals with no EMSCAD support. Per concept paper section 3.3
-#: these are applied as BOUNDED ADDITIVE PENALTIES on top of the fused probability,
-#: with a hard cap each, so that no deterministic rule can ever dominate the model.
-PENALTY_RULE_FEATURES: tuple[str, ...] = (
     "salary_implausible_vs_umk",
     "risk_phrase_score_id",
     "payment_request_id",
 )
 
-#: Per-feature caps, in probability units added to p_fusi.
-PENALTY_CAPS: dict[str, float] = {
-    "salary_implausible_vs_umk": 0.05,
-    "risk_phrase_score_id": 0.05,
-    "payment_request_id": 0.05,
-}
+# ---------------------------------------------------------------------------
+# MEASURED 2026-07-31 — ml/verify_derivability.py, eval/derivability_report.md
+# ---------------------------------------------------------------------------
+#
+# The concept paper (section 3.3) assumed some rule signals could be learned from
+# EMSCAD metadata: "Sebagian sinyal aturan (domain email, keberadaan profil
+# perusahaan) tersedia langsung pada metadata EMSCAD sehingga dapat dipelajari
+# model meta". Measurement contradicts this for the `text_only` profile.
+#
+#   real email address present in document : 0.0%   (1 row in 3,000)
+#   real URL present in document           : 0.3%
+#   visible `#EMAIL_x#` / `#URL_x#` marker : 24.8%
+#
+# EMSCAD removed contact details before publication. Only about a quarter left a
+# placeholder behind; the rest were stripped SILENTLY, so a contact rule cannot even
+# reliably detect that it is looking at redacted text.
+#
+# Worse, the redaction rate differs by class — 32.1% of fraudulent rows carry a
+# placeholder versus 25.2% of real ones. A model given those features would learn
+# "placeholder present -> fraudulent", score well offline, and rely on an artefact
+# that cannot exist in a user's WhatsApp paste.
+#
+# Consequence: only ONE rule feature is learnable from EMSCAD.
 
-#: Paper section 3.3: "tidak ada satu aturan deterministik pun yang dapat
-#: mendominasi keputusan model". 0.15 is at most a 15-point swing on a 0-100 score.
-MAX_TOTAL_PENALTY = 0.15
+#: Derivable from EMSCAD text. `qualification_conflict` survives because it is a
+#: property of the prose itself ("fresh graduate" alongside "5 years experience"),
+#: not of the contact metadata. The rule must therefore carry ENGLISH patterns as
+#: well as Indonesian ones, or it is unlearnable here too (step 2.4).
+EMSCAD_DERIVABLE_FEATURES: tuple[str, ...] = ("qualification_conflict",)
 
-RULE_FEATURE_ORDER: tuple[str, ...] = LEARNED_RULE_FEATURES + PENALTY_RULE_FEATURES
+#: Everything else. Weights are fitted on a dedicated Indonesian fusion TRAINING
+#: set (`eval/indonesian_fusion_train.jsonl`), which is separate from and disjoint
+#: with the held-out evaluation set. See MVP_PLAN.md step 3.1.
+INDONESIAN_FITTED_FEATURES: tuple[str, ...] = tuple(
+    f for f in RULE_FEATURE_ORDER if f not in EMSCAD_DERIVABLE_FEATURES
+)
+
+#: Where the fusion meta-model's training data comes from. Recorded here because it
+#: is a deviation from the concept paper worth stating plainly in the write-up: the
+#: paper trains fusion on an EMSCAD validation partition, we cannot.
+FUSION_TRAINING_SOURCE = "indonesian_fusion_train"
+
+# ---------------------------------------------------------------------------
+# Bounded contribution — the concept paper's section 3.3 guarantee
+# ---------------------------------------------------------------------------
+#
+# Weights are now LEARNED rather than hand-set, but the caps remain as a safety
+# rail: the Indonesian fusion set is small (order 10^2) and 9 features fitted on it
+# will produce noisy coefficients. The cap bounds how far any single noisy weight
+# can move a user's score.
+#
+# NOTE FOR THE WRITE-UP: section 3.3 currently states an aggregate cap of 0.15.
+# That figure was sized for 3 penalty rules. With 8 rules sharing it each would be
+# worth ~2 score points and the rule layer would be decorative. The guarantee is
+# therefore expressed PER RULE, which is what "tidak ada satu aturan deterministik
+# pun yang dapat mendominasi" actually asserts.
+
+#: No single rule may shift the fused probability by more than this — at most a
+#: 10-point swing on the 0-100 score.
+PER_RULE_CONTRIBUTION_CAP = 0.10
+
+#: Aggregate ceiling across all rules combined.
+MAX_TOTAL_RULE_SHIFT = 0.45
+
+#: Backwards-compatible alias; prefer MAX_TOTAL_RULE_SHIFT in new code.
+MAX_TOTAL_PENALTY = MAX_TOTAL_RULE_SHIFT
 
 
 # ---------------------------------------------------------------------------
@@ -212,16 +262,49 @@ def assert_rule_vector(names: Sequence[str]) -> None:
         )
 
 
+#: A rule allowed to shift p(scam) by more than this is, by any reasonable reading,
+#: dominating the model's own judgement.
+MAX_SAFE_PER_RULE_CAP = 0.5
+
+
 def assert_penalty_caps_sane() -> None:
-    """The bounded-penalty guarantee from paper section 3.3, checked at import time."""
-    if set(PENALTY_CAPS) != set(PENALTY_RULE_FEATURES):
-        raise FeatureContractViolation("PENALTY_CAPS must cover exactly PENALTY_RULE_FEATURES.")
-    total = sum(PENALTY_CAPS.values())
-    if total > MAX_TOTAL_PENALTY + 1e-9:
+    """The bounded-contribution guarantee from paper section 3.3, checked at import.
+
+    Order matters: the dominance check runs BEFORE the relational one, so that an
+    absurd cap reports the reason that actually matters rather than tripping the
+    weaker "exceeds the aggregate" message on its way past.
+    """
+    if PER_RULE_CONTRIBUTION_CAP <= 0.0:
         raise FeatureContractViolation(
-            f"Penalty caps sum to {total:.3f}, exceeding MAX_TOTAL_PENALTY="
-            f"{MAX_TOTAL_PENALTY}. This would let deterministic rules dominate the "
-            f"model, contradicting concept paper section 3.3."
+            f"PER_RULE_CONTRIBUTION_CAP={PER_RULE_CONTRIBUTION_CAP} must be positive."
+        )
+    if PER_RULE_CONTRIBUTION_CAP > MAX_SAFE_PER_RULE_CAP:
+        raise FeatureContractViolation(
+            f"PER_RULE_CONTRIBUTION_CAP={PER_RULE_CONTRIBUTION_CAP} lets one "
+            f"deterministic rule dominate the model, contradicting section 3.3."
+        )
+    if PER_RULE_CONTRIBUTION_CAP > MAX_TOTAL_RULE_SHIFT:
+        raise FeatureContractViolation(
+            f"PER_RULE_CONTRIBUTION_CAP={PER_RULE_CONTRIBUTION_CAP} exceeds the "
+            f"aggregate ceiling MAX_TOTAL_RULE_SHIFT={MAX_TOTAL_RULE_SHIFT}."
+        )
+
+
+def clip_rule_shift(total_shift: float) -> float:
+    """Apply the aggregate ceiling to the combined rule contribution."""
+    return max(-MAX_TOTAL_RULE_SHIFT, min(total_shift, MAX_TOTAL_RULE_SHIFT))
+
+
+def assert_features_partitioned() -> None:
+    """Every feature belongs to exactly one weight-source bucket."""
+    overlap = set(EMSCAD_DERIVABLE_FEATURES) & set(INDONESIAN_FITTED_FEATURES)
+    if overlap:
+        raise FeatureContractViolation(f"Features in both buckets: {sorted(overlap)}")
+    union = set(EMSCAD_DERIVABLE_FEATURES) | set(INDONESIAN_FITTED_FEATURES)
+    if union != set(RULE_FEATURE_ORDER):
+        raise FeatureContractViolation(
+            f"Bucket union does not cover RULE_FEATURE_ORDER. "
+            f"Missing: {sorted(set(RULE_FEATURE_ORDER) - union)}"
         )
 
 
@@ -232,3 +315,4 @@ def text_document_columns(profile: str) -> tuple[str, ...]:
 
 # Fail at import time rather than three days later during a demo.
 assert_penalty_caps_sane()
+assert_features_partitioned()

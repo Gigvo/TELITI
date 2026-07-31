@@ -109,11 +109,12 @@ class EmailDomainRule(Rule):
         # real companies hire. Assigning it a small non-zero severity would put a
         # warning card on a spotless posting, which is precisely the false positive
         # section 3.6 tells us to suppress.
-        has_real_site = any(
-            url_host(u.text) not in URL_SHORTENERS
-            and url_host(u.text) not in LINK_AGGREGATOR_ALLOWLIST
-            for u in ctx.urls
-        )
+        # Link aggregators COUNT as a real route here, unlike in the shortener rule.
+        # A Linktree is a published, attributable page — Indonesian campus career
+        # centres and SMEs route real postings through one. An anonymous shortener
+        # hides its destination; an aggregator does not. Excluding aggregators here
+        # made `email_absent` fire on a legitimate career-centre post.
+        has_real_site = any(url_host(u.text) not in URL_SHORTENERS for u in ctx.urls)
         if has_real_site:
             return self._clean("email_absent", *_LABEL_ABSENT, CATEGORY)
 

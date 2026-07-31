@@ -160,6 +160,19 @@ def test_email_absent_does_not_fire_when_a_real_career_page_is_offered():
     ) == 0.0
 
 
+def test_email_absent_does_not_fire_on_a_link_aggregator():
+    """A Linktree is a published, attributable page, not an anonymous redirect.
+
+    Indonesian campus career centres and SMEs route real postings through one, so
+    treating it as "no application route" flags legitimate posts.
+    """
+    assert severity(
+        "Info loker dari Career Center UGM, semua informasi resmi ada di "
+        "https://linktr.ee/careercenterugm ya.",
+        "email_absent",
+    ) == 0.0
+
+
 def test_email_absent_escalates_as_the_application_route_gets_thinner():
     no_route = severity(
         "Dibutuhkan admin online untuk perusahaan ternama, gaji besar, kerja dari rumah.",

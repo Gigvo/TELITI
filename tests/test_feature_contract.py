@@ -11,18 +11,20 @@ import pytest
 
 from ml.feature_contract import (
     EMSCAD_COLUMNS,
-    LEARNED_RULE_FEATURES,
-    MAX_TOTAL_PENALTY,
-    PENALTY_CAPS,
-    PENALTY_RULE_FEATURES,
+    EMSCAD_DERIVABLE_FEATURES,
+    INDONESIAN_FITTED_FEATURES,
+    MAX_TOTAL_RULE_SHIFT,
+    PER_RULE_CONTRIBUTION_CAP,
     PROFILE_STRUCTURED,
     PROFILE_TEXT_ONLY,
     RULE_FEATURE_ORDER,
     FeatureContractViolation,
+    assert_features_partitioned,
     assert_no_forbidden_columns,
     assert_penalty_caps_sane,
     assert_rule_vector,
     assert_valid_profile,
+    clip_rule_shift,
     text_document_columns,
 )
 
@@ -91,32 +93,55 @@ def test_rule_vector_order_is_enforced():
 
 def test_rule_features_are_unique_and_partitioned():
     assert len(set(RULE_FEATURE_ORDER)) == len(RULE_FEATURE_ORDER), "duplicate rule feature"
-    assert not set(LEARNED_RULE_FEATURES) & set(PENALTY_RULE_FEATURES), (
-        "A feature cannot both have a learned weight and an additive penalty — "
-        "it would be counted twice."
+    assert_features_partitioned()
+
+
+def test_feature_order_is_independent_of_bucket_membership():
+    """Reclassifying a feature must never permute the vector.
+
+    RULE_FEATURE_ORDER is declared literally, not derived from the buckets, because
+    the fusion model indexes it positionally. Moving a feature between weight-source
+    buckets — which measurement forced us to do once already — must be a no-op here.
+    """
+    assert RULE_FEATURE_ORDER.index("email_free_provider") == 0
+    assert RULE_FEATURE_ORDER.index("payment_request_id") == len(RULE_FEATURE_ORDER) - 1
+    assert set(EMSCAD_DERIVABLE_FEATURES) | set(INDONESIAN_FITTED_FEATURES) == set(
+        RULE_FEATURE_ORDER
     )
 
 
-# --- the bounded-penalty guarantee (concept paper 3.3) ----------------------
+def test_only_qualification_conflict_is_learnable_from_emscad():
+    """Records the measured finding — see eval/derivability_report.md.
+
+    EMSCAD strips contact details, so every contact-derived feature must have its
+    weight fitted on Indonesian data instead. If this assertion ever fails, the
+    corpus changed and ml/verify_derivability.py must be re-run.
+    """
+    assert EMSCAD_DERIVABLE_FEATURES == ("qualification_conflict",)
+    for feature in ("email_free_provider", "email_absent", "email_domain_mismatch",
+                    "contact_messaging_only", "url_shortener"):
+        assert feature in INDONESIAN_FITTED_FEATURES
 
 
-def test_penalty_caps_cannot_dominate_the_model():
+# --- the bounded-contribution guarantee (concept paper 3.3) -----------------
+
+
+def test_no_single_rule_can_dominate():
     assert_penalty_caps_sane()
-    # Same 1e-9 tolerance the implementation uses: 0.05 * 3 == 0.15000000000000002
-    # in binary floating point, and a bare <= would fail on an exactly-at-budget config.
-    assert sum(PENALTY_CAPS.values()) <= MAX_TOTAL_PENALTY + 1e-9
-    assert set(PENALTY_CAPS) == set(PENALTY_RULE_FEATURES)
+    assert 0.0 < PER_RULE_CONTRIBUTION_CAP <= 0.5
+    assert PER_RULE_CONTRIBUTION_CAP <= MAX_TOTAL_RULE_SHIFT
 
 
-def test_over_budget_penalty_caps_are_rejected(monkeypatch):
+def test_an_oversized_per_rule_cap_is_rejected(monkeypatch):
     """The guard must actually fire — not just pass because we happen to be in budget."""
     import ml.feature_contract as fc
 
-    monkeypatch.setattr(fc, "PENALTY_CAPS", {name: 0.5 for name in PENALTY_RULE_FEATURES})
+    monkeypatch.setattr(fc, "PER_RULE_CONTRIBUTION_CAP", 0.9)
     with pytest.raises(FeatureContractViolation, match="dominate"):
         fc.assert_penalty_caps_sane()
 
 
-def test_every_penalty_cap_is_positive_and_small():
-    for name, cap in PENALTY_CAPS.items():
-        assert 0.0 < cap <= MAX_TOTAL_PENALTY, f"{name} has an implausible cap {cap}"
+def test_aggregate_rule_shift_is_clipped():
+    assert clip_rule_shift(0.9) == MAX_TOTAL_RULE_SHIFT
+    assert clip_rule_shift(-0.9) == -MAX_TOTAL_RULE_SHIFT
+    assert clip_rule_shift(0.1) == 0.1

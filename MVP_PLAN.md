@@ -63,6 +63,61 @@ zero-shot Indonesian transfer for free. Trains in ~12–18 min on the 5050.
 Do **not** start at step 3. Each rung costs a training run; the ladder exists so we only pay for
 rungs we need.
 
+### 1.2b MEASURED: EMSCAD cannot teach the rule weights (decided Day 1)
+
+`ml/verify_derivability.py` tested the concept paper's §3.3 assumption that rule
+signals can be fitted on EMSCAD. It does not hold:
+
+| property | rate |
+|---|---:|
+| real email address present | 0.02% |
+| real URL present | 0.39% |
+| visible `#EMAIL_x#` placeholder | 25.6% |
+
+EMSCAD stripped contact details before publication, and only a quarter left a marker
+behind. Every contact-derived rule is therefore either signal-absent or, in the case
+of `email_absent`, **UNSAFE** — its availability differs by class (74.8% on real
+postings vs 67.9% on fraudulent ones), so a model given it would partly learn how the
+corpus was anonymised rather than what a scam looks like.
+
+**Decision (revised): rule weights are set A PRIORI and validated, not fitted.**
+
+Fitting them would need a second annotated Indonesian set (~200 items) on top of the
+held-out set. That is not affordable inside the deadline, so:
+
+- Weights live in `ml/rule_weights.py`, ordered by domain reasoning, each bounded by
+  `PER_RULE_CONTRIBUTION_CAP = 0.10`, summing to exactly `MAX_TOTAL_RULE_SHIFT = 0.45`.
+- `ml/validate_rule_weights.py` measures on the held-out set whether the rule layer
+  beats the text model alone. Whatever it reports gets reported — including "the rule
+  layer did not help".
+- **The weights must never be tuned against the holdout.** The moment they are, the
+  holdout is training data and the headline metric is gone.
+
+This keeps the annotation budget at the paper's original **~200 items**, one file:
+`eval/indonesian_holdout.jsonl`.
+
+The §3.3 guarantee is now expressed **per rule** (0.10) rather than as a 0.15
+aggregate, which is what "tidak ada satu aturan deterministik pun yang dapat
+mendominasi" actually asserts. The paper needs updating to match.
+
+### 1.2c Building against synthetic fixtures while annotation runs
+
+`eval/synthetic_fixture.jsonl` (24 fabricated items, `ml/make_fixture.py`) exercises
+every rule branch so the pipeline can be built before real data exists.
+
+**The hard rule: synthetic data must never produce a reportable number.** In a short
+sprint, someone runs the pipeline, sees a good figure, screenshots it, and the
+provenance is lost by the time it reaches a slide. Fabricated scam text is especially
+treacherous — the model is evaluated against the assumptions of whoever wrote it, so
+the number looks excellent and measures nothing.
+
+Enforced in `ml/eval_set.py`: every fixture row carries `synthetic: true` and a
+`SYNTHETIC-NNNN` id, one such row taints the whole file, and any caller computing
+metrics must pass `--allow-synthetic` explicitly. Reports get a banner.
+
+When the real annotations land, drop them in `eval/indonesian_holdout.jsonl`, rerun
+the same commands, and the guards go quiet on their own.
+
 ### 1.3 Class imbalance: SMOTE is for the baseline only
 
 EMSCAD is 4.84% fraud (866 / 17,880). The paper says "SMOTE or class weighting".
