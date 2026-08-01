@@ -42,6 +42,26 @@ Run the tests:
 .venv/Scripts/python.exe -m pytest
 ```
 
+### Frontend
+
+Requires Node 20+. In a second terminal:
+
+```bash
+cd web && npm install && npm run dev
+```
+
+Then open <http://localhost:5173>. The Vite dev server proxies `/api` and `/health`
+to FastAPI on port 8000, so the browser sees a single origin and there is no CORS
+preflight in development.
+
+```bash
+cd web && npm test          # component and behaviour tests
+cd web && npm run build     # typecheck + production bundle
+```
+
+Both servers must be running: the UI shows an **API unreachable** banner otherwise,
+and a **model is stubbed** banner until a real model is loaded.
+
 ### Training box only
 
 The transformer is fine-tuned on a separate machine with an **RTX 5050 (Blackwell, sm_120)**.

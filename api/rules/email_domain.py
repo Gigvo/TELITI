@@ -128,7 +128,7 @@ class EmailDomainRule(Rule):
             label_id=_LABEL_ABSENT[0],
             label_en=_LABEL_ABSENT[1],
             category=CATEGORY,
-            evidence="Tidak ditemukan alamat email pada teks lowongan.",
+            evidence="No email address found in the job posting.",
         )
 
     def _eval_mismatch(self, ctx: IngestResult) -> RuleOutcome:

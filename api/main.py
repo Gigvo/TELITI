@@ -29,6 +29,8 @@ from api.constants import (
     PLACEHOLDER_THRESHOLDS,
     STUB_MODEL_VERSION,
     TOP_K_SENTENCE_EVIDENCE,
+    disclaimer_for,
+    privacy_note_for,
 )
 from api.ingest import ingest
 from api.locale import detect_language, load_registry
@@ -197,21 +199,34 @@ def _stub_sentence_evidence(text: str) -> list[SentenceEvidence]:
     return scored[:TOP_K_SENTENCE_EVIDENCE]
 
 
-def _summary(score: int, label: RiskLabel, rule_hits: list[RuleHit]) -> str:
-    """Narrative explanation. Replaced by the XAI composer in step 3.4.
+def _summary(score: int, label: RiskLabel, rule_hits: list[RuleHit], locale_code: str) -> str:
+    """Narrative explanation, in the language of the ad.
 
-    Still prefixed [STUB] because the SCORE it quotes is synthetic — the rule
-    reasons it lists are real.
+    Replaced by the XAI composer in step 3.4. Still prefixed [STUB] because the
+    SCORE it quotes is synthetic — the rule reasons it lists are real.
     """
-    if rule_hits:
-        reasons = "; ".join(h.label_id.lower() for h in rule_hits)
+    if locale_code == "id":
+        if rule_hits:
+            reasons = "; ".join(h.label_id.lower() for h in rule_hits)
+            return (
+                f"[STUB] Skor integritas {score}/100 (risiko {label.value}). "
+                f"Indikasi yang ditemukan: {reasons}."
+            )
         return (
             f"[STUB] Skor integritas {score}/100 (risiko {label.value}). "
-            f"Indikasi yang ditemukan: {reasons}."
+            f"Tidak ada aturan deterministik yang terpicu."
+        )
+
+    english_label = {"Rendah": "Low", "Sedang": "Medium", "Tinggi": "High"}[label.value]
+    if rule_hits:
+        reasons = "; ".join(h.label_en.lower() for h in rule_hits)
+        return (
+            f"[STUB] Integrity score {score}/100 ({english_label} risk). "
+            f"Findings: {reasons}."
         )
     return (
-        f"[STUB] Skor integritas {score}/100 (risiko {label.value}). "
-        f"Tidak ada aturan deterministik yang terpicu."
+        f"[STUB] Integrity score {score}/100 ({english_label} risk). "
+        f"No deterministic rules were triggered."
     )
 
 
@@ -263,13 +278,15 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         risk_label=label,
         model_probability=round(probability, 4),
         fused_probability=round(probability, 4),
-        summary=_summary(score, label, rule_hits),
+        summary=_summary(score, label, rule_hits, locale.code),
         sentence_evidence=_stub_sentence_evidence(payload.text),
         rule_hits=rule_hits,
         extracted_fields=ingested.fields,
         locale=locale.code,
         locale_detected=detect_language(payload.text),
         unassessed_rules=list(evaluation.unavailable_features),
+        disclaimer=disclaimer_for(locale.code),
+        privacy_note=privacy_note_for(locale.code),
         request_id=str(uuid.uuid4()),
         model_version=STUB_MODEL_VERSION,
         latency_ms=int((time.perf_counter() - started) * 1000),

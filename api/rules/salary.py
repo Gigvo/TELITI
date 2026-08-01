@@ -276,7 +276,23 @@ class SalarySanityRule(Rule):
 
         severity = min(0.4 + 0.6 * (multiple - threshold) / threshold, 1.0)
         currency = locale.wages.currency
-        role = "tanpa pengalaman/entry level" if entry_level else "posisi ini"
+
+        # Narrate in the language of the ad — see the equivalent note in
+        # api/rules/risk_phrases.py.
+        if locale.code == "id":
+            role = "tanpa pengalaman/entry level" if entry_level else "posisi ini"
+            evidence = (
+                f"Gaji {_format_amount(amount, currency)} setara {multiple:.1f}x "
+                f"upah minimum {region} ({_format_amount(minimum, currency)}) "
+                f"untuk {role}."
+            )
+        else:
+            role = "an entry-level role" if entry_level else "this position"
+            evidence = (
+                f"Salary of {_format_amount(amount, currency)} is {multiple:.1f}x the "
+                f"minimum wage for {region} ({_format_amount(minimum, currency)}) "
+                f"for {role}."
+            )
 
         return [
             RuleOutcome(
@@ -285,11 +301,7 @@ class SalarySanityRule(Rule):
                 label_id=_LABEL[0],
                 label_en=_LABEL[1],
                 category=CATEGORY,
-                evidence=(
-                    f"Gaji {_format_amount(amount, currency)} setara {multiple:.1f}x "
-                    f"upah minimum {region} ({_format_amount(minimum, currency)}) "
-                    f"untuk {role}."
-                ),
+                evidence=evidence,
                 span=Span(start=match.start, end=match.end),
             )
         ]

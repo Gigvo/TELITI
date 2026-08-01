@@ -45,5 +45,20 @@ DISCLAIMER_ID = (
     "mengenai keabsahan lowongan atau perusahaan."
 )
 
+DISCLAIMER_EN = (
+    "This score is a risk indicator, not a verdict. TELITI can be wrong. "
+    "Treat this as one input to your own judgement, not as a final conclusion "
+    "about the legitimacy of a posting or a company."
+)
+
 #: Concept paper section 3.6: no analysed text is persisted.
 PRIVACY_NOTE_ID = "Teks yang Anda analisis tidak disimpan oleh sistem."
+PRIVACY_NOTE_EN = "The text you analyse is not stored by this system."
+
+
+def disclaimer_for(locale_code: str) -> str:
+    return DISCLAIMER_ID if locale_code == "id" else DISCLAIMER_EN
+
+
+def privacy_note_for(locale_code: str) -> str:
+    return PRIVACY_NOTE_ID if locale_code == "id" else PRIVACY_NOTE_EN

@@ -227,9 +227,12 @@ class RiskPhraseRule(Rule):
         matches = find_phrases(ctx.raw_text, locale)
         payment = [m for m in matches if m.group == PAYMENT_GROUP]
         other = [m for m in matches if m.group != PAYMENT_GROUP]
-        return [self._payment_outcome(payment), self._aggregate_outcome(other)]
+        return [
+            self._payment_outcome(payment, locale),
+            self._aggregate_outcome(other, locale),
+        ]
 
-    def _payment_outcome(self, matches: list[PhraseMatch]) -> RuleOutcome:
+    def _payment_outcome(self, matches: list[PhraseMatch], locale: Locale) -> RuleOutcome:
         if not matches:
             return self._clean("payment_request_id", *_LABEL_PAYMENT, CATEGORY)
 
@@ -237,17 +240,25 @@ class RiskPhraseRule(Rule):
         severity = saturating_score([m.weight for m in matches])
         quoted = ", ".join(f'"{m.text}"' for m in sorted(matches, key=lambda m: -m.weight)[:3])
 
+        # Narrate in the language of the ad. An English posting explained in
+        # Indonesian is unreadable to the person who submitted it.
+        evidence = (
+            f"Ditemukan {quoted} pada teks lowongan."
+            if locale.code == "id"
+            else f"Found {quoted} in the job posting."
+        )
+
         return RuleOutcome(
             feature_id="payment_request_id",
             severity=round(severity, 4),
             label_id=_LABEL_PAYMENT[0],
             label_en=_LABEL_PAYMENT[1],
             category=CATEGORY,
-            evidence=f"Ditemukan {quoted} pada teks lowongan.",
+            evidence=evidence,
             span=Span(start=strongest.start, end=strongest.end),
         )
 
-    def _aggregate_outcome(self, matches: list[PhraseMatch]) -> RuleOutcome:
+    def _aggregate_outcome(self, matches: list[PhraseMatch], locale: Locale) -> RuleOutcome:
         if not matches:
             return self._clean("risk_phrase_score_id", *_LABEL_AGGREGATE, CATEGORY)
 
@@ -255,7 +266,14 @@ class RiskPhraseRule(Rule):
         severity = saturating_score([m.weight for m in matches])
         top = sorted(matches, key=lambda m: -m.weight)[:3]
         quoted = ", ".join(f'"{m.text}"' for m in top)
-        extra = f" (+{len(matches) - len(top)} lainnya)" if len(matches) > len(top) else ""
+        remainder = len(matches) - len(top)
+
+        if locale.code == "id":
+            extra = f" (+{remainder} lainnya)" if remainder else ""
+            evidence = f"Frasa berisiko: {quoted}{extra}."
+        else:
+            extra = f" (+{remainder} more)" if remainder else ""
+            evidence = f"Risk phrases: {quoted}{extra}."
 
         return RuleOutcome(
             feature_id="risk_phrase_score_id",
@@ -263,6 +281,6 @@ class RiskPhraseRule(Rule):
             label_id=_LABEL_AGGREGATE[0],
             label_en=_LABEL_AGGREGATE[1],
             category=CATEGORY,
-            evidence=f"Frasa berisiko: {quoted}{extra}.",
+            evidence=evidence,
             span=Span(start=strongest.start, end=strongest.end),
         )
