@@ -213,6 +213,12 @@ class AnalyzeResponse(BaseModel):
     rule_hits: list[RuleHit] = Field(default_factory=list)
     extracted_fields: ExtractedFields = Field(default_factory=ExtractedFields)
 
+    analysed_text: str = Field(
+        description="The exact text that was scored, after sanitisation. All spans "
+        "index THIS string. Render it rather than the raw submission: sanitisation "
+        "strips bidirectional overrides that would otherwise let an advertisement "
+        "display differently than it was analysed."
+    )
     locale: str = Field(description="Language the rule layer scored with ('en' / 'id').")
     locale_detected: str = Field(description="Language auto-detected from the text.")
     unassessed_rules: list[str] = Field(

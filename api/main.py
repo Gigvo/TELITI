@@ -15,14 +15,17 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.constants import (
     API_PREFIX,
@@ -35,6 +38,7 @@ from api.constants import (
 from api.ingest import ingest
 from api.locale import detect_language, load_registry
 from api.rules.engine import default_engine
+from api.sanitize import sanitize
 from api.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -250,6 +254,27 @@ async def health() -> HealthResponse:
     )
 
 
+def _mount_frontend() -> None:
+    """Serve the built React bundle from this process, if it is present.
+
+    Lets the Docker image be a single container on a single port: no CORS, no
+    reverse proxy, nothing extra to configure on an unfamiliar demo network.
+
+    In development this directory does not exist and nothing is mounted — the Vite
+    dev server handles the UI and proxies here, which keeps hot reload working.
+
+    Mounted LAST so it never shadows /api or /health.
+    """
+    static_dir = os.environ.get("TELITI_STATIC_DIR", "web/dist")
+    index = Path(static_dir) / "index.html"
+    if not index.is_file():
+        log.info("No frontend bundle at %s; serving API only.", static_dir)
+        return
+
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+    log.info("Serving frontend from %s", static_dir)
+
+
 @app.post(
     f"{API_PREFIX}/analyze",
     response_model=AnalyzeResponse,
@@ -259,17 +284,32 @@ async def health() -> HealthResponse:
 async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     started = time.perf_counter()
 
+    # Sanitise before anything reads the text (step 4.3). Length-preserving, so
+    # span offsets still address what the client will render.
+    cleaned = sanitize(payload.text)
+    if not cleaned.is_analysable:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"This text contains only {cleaned.meaningful_chars} readable "
+                f"characters. Paste the full job advertisement so there is "
+                f"something to analyse."
+            ),
+        )
+
+    text = cleaned.text
+
     # Real: locale resolution + ingest + rule layer (steps 1.4 / 2.4).
-    locale = load_registry().resolve(payload.text, payload.locale)
+    locale = load_registry().resolve(text, payload.locale)
     engine = default_engine(locale)
 
-    ingested = ingest(payload.text)
+    ingested = ingest(text)
     evaluation = engine.evaluate(ingested)
     rule_hits = evaluation.to_rule_hits()
 
     # Still synthetic: the text model (step 2.5) and the fusion (step 4.1).
     # Score is therefore model-only; rule severities do not yet move it.
-    probability = _stub_probability(payload.text)
+    probability = _stub_probability(text)
     score = round((1.0 - probability) * 100)
     label = _label_for(score)
 
@@ -279,7 +319,8 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         model_probability=round(probability, 4),
         fused_probability=round(probability, 4),
         summary=_summary(score, label, rule_hits, locale.code),
-        sentence_evidence=_stub_sentence_evidence(payload.text),
+        sentence_evidence=_stub_sentence_evidence(text),
+        analysed_text=text,
         rule_hits=rule_hits,
         extracted_fields=ingested.fields,
         locale=locale.code,
@@ -291,3 +332,7 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         model_version=STUB_MODEL_VERSION,
         latency_ms=int((time.perf_counter() - started) * 1000),
     )
+
+
+# Registered LAST: StaticFiles at "/" would otherwise shadow /api and /health.
+_mount_frontend()

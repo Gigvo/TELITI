@@ -20,6 +20,28 @@ STUB_MODEL_VERSION = "stub-0.0.0"
 MIN_TEXT_LENGTH = 30
 MAX_TEXT_LENGTH = 20_000
 
+#: Minimum count of characters that actually carry meaning (letters and digits).
+#:
+#: Length alone is not enough: 80 spaces clears MIN_TEXT_LENGTH and produced a
+#: confident-looking score computed from nothing. A job ad with fewer than this
+#: many real characters cannot be assessed, and saying so is better than
+#: returning a number.
+MIN_MEANINGFUL_CHARS = 20
+
+#: Characters that must never survive ingestion.
+#:
+#: - C0/C1 control codes: corrupt extracted fields and downstream logs.
+#: - U+202A-U+202E, U+2066-U+2069: bidirectional overrides. These visually
+#:   REORDER text, so an advertisement can render differently in the browser than
+#:   the text we scored. That is a spoofing vector against the whole product:
+#:   the user reads one thing and we analysed another.
+#: - U+FEFF, U+200B-U+200D: zero-width characters used to break up risk phrases
+#:   so a lexicon match fails ("b​iaya administrasi").
+CONTROL_CHAR_PATTERN = (
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f"
+    r"​-‍‪-‮⁦-⁩﻿]"
+)
+
 #: Cap on how many sentences get the leave-one-out treatment in the XAI module.
 #: Each one is a forward pass; this is what keeps us inside the <1s budget.
 MAX_SENTENCES_FOR_OCCLUSION = 60

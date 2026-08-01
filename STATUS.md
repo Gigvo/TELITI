@@ -1,6 +1,6 @@
 # TELITI — build status
 
-**Updated:** 2026-07-31 · **Tests:** 278 backend + 19 frontend = **297 passing**
+**Updated:** 2026-08-01 · **Tests:** 297 backend + 19 frontend = **316 passing**
 **Tag:** none yet (freeze at Day 4)
 
 Deadline is 4–8 days. Days 1–4 are the critical path to a demo; everything after is
@@ -86,9 +86,13 @@ additive. See [MVP_PLAN.md](MVP_PLAN.md) for the full plan and gates.
 - [x] **3.5** Frontend integration — done early, will need re-checking after 2.5
 
 ### Day 4 — 🎯 shippable
-- [ ] **4.1** Full pipeline wired
-- [ ] **4.2** Final evaluation → `eval/results.md` (touch `test` once)
-- [ ] **4.3** Demo hardening
+- [ ] **4.1** Full pipeline wired — *needs 2.5*
+- [ ] **4.2** Final evaluation → `eval/results.md` — *needs 2.1 + 1.5*
+- [x] **4.3** Demo hardening — done early
+  - Input sanitisation: control chars, bidi overrides, zero-width evasion
+  - Meaningful-content floor (whitespace/emoji/punctuation-only now 422)
+  - Latency **794 ms → 86 ms** worst case at 20k chars
+  - `analysed_text` returned so the client renders exactly what was scored
 - [ ] **4.4** Tag `v0.1-mvp` — **freeze point**
 
 ### Days 5–8 — additive
@@ -124,11 +128,30 @@ additive. See [MVP_PLAN.md](MVP_PLAN.md) for the full plan and gates.
 
 ---
 
+## Deployment
+
+`docker compose up --build` → <http://localhost:8000>. One container, one port:
+the React bundle is built in and served by FastAPI, so there is no CORS and no
+reverse proxy to configure on an unfamiliar demo network.
+
+⚠️ **Not yet built or run** — the Docker daemon was unavailable on this machine.
+The Dockerfile is statically validated (every COPY source exists,
+`package-lock.json` present for `npm ci`, healthcheck syntax checked) but the build
+itself is unverified. **Run it once before demo day.**
+
+Model artifacts and locale resources are mounted, not baked in, so a retrained
+model is a restart rather than a rebuild.
+
+---
+
 ## Suggested next moves
 
-**Your team:** run Gate 0.2 on the GPU box, and start annotation in whichever
-language you can actually source.
+**Your team:**
+1. Run Gate 0.2 on the GPU box (~15 min) — unblocks the entire 2.x/3.x path
+2. Start annotation: `python ml/add_eval_item.py` prompts for each field,
+   allocates ids, and re-validates after every entry
+3. Build the Docker image once to confirm it works
 
-**Me, unblocked right now:** nothing substantial. Steps 2.1–3.4 all need either the
-GPU or the holdout set. Remaining useful work is polish: demo hardening (4.3),
-a Dockerfile, or drafting the paper revisions above.
+**Me:** genuinely out of unblocked work. Everything remaining needs the GPU box or
+the holdout set. What is left is small: a `.env` for configuration, or expanding
+the English lexicon — neither is on the critical path.

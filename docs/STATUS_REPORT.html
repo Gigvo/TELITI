@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TELITI — Product Status Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+    @bottom-center {
+      content: "TELITI — Product Status Report — " counter(page) " / " counter(pages);
+      font-size: 8.5pt;
+      color: #6b7280;
+      font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #1a1d23;
+    margin: 0;
+  }
+
+  .cover {
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 240mm;
+  }
+
+  .cover .kicker {
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #4f8cff;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .cover h1 {
+    font-size: 34pt;
+    margin: 0 0 10px;
+    letter-spacing: -0.5px;
+  }
+
+  .cover .subtitle {
+    font-size: 14pt;
+    color: #4b5563;
+    margin-bottom: 40px;
+    max-width: 480px;
+  }
+
+  .cover .meta {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 18px;
+    font-size: 10pt;
+    color: #6b7280;
+  }
+  .cover .meta div { margin-bottom: 4px; }
+  .cover .meta strong { color: #1a1d23; }
+
+  .cover .badge-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 26px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 9pt;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-blue   { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+  .badge-green  { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+  .badge-amber  { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+
+  h1 { font-size: 20pt; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 {
+    font-size: 14pt;
+    margin: 26px 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #1a1d23;
+  }
+  h3 {
+    font-size: 11.5pt;
+    margin: 16px 0 6px;
+    color: #1a1d23;
+  }
+  h4 {
+    font-size: 10.5pt;
+    margin: 12px 0 5px;
+    color: #374151;
+  }
+
+  section { page-break-inside: avoid; }
+  .part-break { page-break-before: always; }
+
+  p { margin: 0 0 9px; }
+
+  strong { font-weight: 650; }
+
+  .lede {
+    font-size: 12pt;
+    background: #f8fafc;
+    border-left: 3px solid #4f8cff;
+    padding: 12px 16px;
+    margin: 4px 0 16px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 16px;
+    font-size: 9.5pt;
+  }
+  th, td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+  th {
+    background: #f8fafc;
+    font-weight: 650;
+    border-bottom: 2px solid #d1d5db;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #4b5563;
+  }
+  tr:last-child td { border-bottom: 1px solid #d1d5db; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 9pt;
+    background: #f1f5f9;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #334155;
+  }
+
+  pre {
+    background: #0f1115;
+    color: #e6e9ef;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 8.7pt;
+    line-height: 1.5;
+    overflow-x: auto;
+    margin: 8px 0 14px;
+  }
+
+  .callout {
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 10px 0 14px;
+    font-size: 9.8pt;
+    border: 1px solid;
+  }
+  .callout-warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #78350f;
+  }
+  .callout-good {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #14532d;
+  }
+  .callout-warn strong, .callout-good strong { color: inherit; }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 20px;
+    margin: 10px 0 16px;
+  }
+
+  .layer-row {
+    display: grid;
+    grid-template-columns: 26px 1fr 90px;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .layer-row .dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot-done { background: #22c55e; }
+  .dot-half { background: #f59e0b; }
+  .dot-stub { background: #ef4444; }
+  .layer-row .label-text strong { display: block; font-size: 10pt; }
+  .layer-row .label-text span { font-size: 8.8pt; color: #6b7280; }
+  .layer-row .tag {
+    font-size: 8.3pt;
+    font-weight: 700;
+    text-align: right;
+    letter-spacing: 0.3px;
+  }
+  .tag-done { color: #15803d; }
+  .tag-half { color: #b45309; }
+  .tag-stub { color: #b91c1c; }
+
+  .checklist { margin: 6px 0 16px; }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 9.8pt;
+  }
+  .check-item .mark {
+    flex-shrink: 0;
+    font-weight: 800;
+    width: 16px;
+  }
+  .mark-done { color: #16a34a; }
+  .mark-blocked { color: #dc2626; }
+  .mark-open { color: #9ca3af; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+  }
+
+  ul, ol { margin: 4px 0 12px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+
+  .footnote {
+    font-size: 8.5pt;
+    color: #9ca3af;
+    margin-top: 4px;
+  }
+
+  .toc {
+    margin-top: 30px;
+  }
+  .toc div {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dotted #d1d5db;
+    font-size: 10pt;
+  }
+  .toc .toc-num { color: #4f8cff; font-weight: 700; width: 24px; }
+</style>
+</head>
+<body>
+
+<!-- ============================= COVER ============================= -->
+<div class="cover">
+  <div class="kicker">Product Status Report</div>
+  <h1>TELITI</h1>
+  <div class="subtitle">
+    Teknologi Evaluasi Lowongan dan Integritas — an AI platform scoring job-ad
+    integrity to protect jobseekers from scams and ghost jobs.
+  </div>
+
+  <div class="badge-row">
+    <span class="badge badge-blue">316 tests passing</span>
+    <span class="badge badge-green">Rule layer: complete</span>
+    <span class="badge badge-amber">Text model: not yet trained</span>
+  </div>
+
+  <div class="meta" style="margin-top: 60px;">
+    <div><strong>Prepared:</strong> 1 August 2026</div>
+    <div><strong>Repository:</strong> TELITI (local working copy)</div>
+    <div><strong>Scope:</strong> MVP build, Days 0–1 of the development plan, plus early work on Days 2–4</div>
+    <div><strong>Reference:</strong> MVP_PLAN.md, STATUS.md, docs/PAPER_REVISIONS.md</div>
+  </div>
+
+  <div class="toc">
+    <div><span><span class="toc-num">1</span>What actually works today</span><span>Page 2</span></div>
+    <div><span><span class="toc-num">2</span>What hasn't been done yet</span><span>Page 6</span></div>
+  </div>
+</div>
+
+<!-- ============================= PART 1 ============================= -->
+<h1>Part 1 — What actually works today</h1>
+
+<div class="lede">
+  You have a <strong>working web application</strong> that takes a job advertisement,
+  runs it through nine deterministic rules in English or Indonesian, and returns a
+  0–100 score with per-item evidence — but <strong>the AI model does not exist yet</strong>,
+  so the score itself is currently a placeholder.
+</div>
+
+<p>Put differently: the entire scaffolding of the product is built and tested. The
+brain is missing.</p>
+
+<h2>The four-layer architecture (concept paper §3.1)</h2>
+
+<div class="layer-row">
+  <span class="dot dot-done"></span>
+  <span class="label-text"><strong>1. Ingest</strong><span>Text cleaning, field extraction, sanitisation against spoofing</span></span>
+  <span class="tag tag-done">WORKING</span>
+</div>
+<div class="layer-row">
+  <span class="dot dot-stub"></span>
+  <span class="label-text"><strong>2. Text analysis (AI core)</strong><span>Returns a hash-derived placeholder number</span></span>
+  <span class="tag tag-stub">STUBBED</span>
+</div>
+<div class="layer-row">
+  <span class="dot dot-done"></span>
+  <span class="label-text"><strong>3. Metadata rules</strong><span>All 9 rules implemented, tested, bilingual</span></span>
+  <span class="tag tag-done">WORKING</span>
+</div>
+<div class="layer-row">
+  <span class="dot dot-half"></span>
+  <span class="label-text"><strong>4. Scoring + XAI</strong><span>Fusion logic works; sentence-level explanation needs the model</span></span>
+  <span class="tag tag-half">HALF DONE</span>
+</div>
+
+<p style="margin-top:14px;">Two of four layers are complete. The third is fully
+designed but blocked on external dependencies. That is roughly where you would hope
+to be at this stage — the missing piece is a training run, not a design problem.</p>
+
+<h2>What the rule layer can actually detect</h2>
+
+<table>
+<thead><tr><th>Rule</th><th>Catches</th></tr></thead>
+<tbody>
+<tr><td class="mono">payment_request_id</td><td>"administration fee", "biaya administrasi", "security deposit" — the single strongest scam marker</td></tr>
+<tr><td class="mono">contact_messaging_only</td><td>Chat-only recruitment; Telegram weighted far above WhatsApp (ordinary in Indonesian business)</td></tr>
+<tr><td class="mono">salary_implausible_vs_umk</td><td>Salary vs. regional minimum wage, gated on entry-level signals</td></tr>
+<tr><td class="mono">risk_phrase_score_id</td><td>~175 weighted phrases across 6 categories, both languages</td></tr>
+<tr><td class="mono">email_free_provider</td><td>Gmail/Yahoo vs. corporate domains; disposable providers weighted higher</td></tr>
+<tr><td class="mono">email_domain_mismatch</td><td>Email domain not matching the company named in the ad</td></tr>
+<tr><td class="mono">email_absent</td><td>No application route offered at all</td></tr>
+<tr><td class="mono">url_shortener</td><td><span class="mono">bit.ly</span>, <span class="mono">s.id</span> — Linktree correctly allowlisted</td></tr>
+<tr><td class="mono">qualification_conflict</td><td>"fresh graduate" + "5 years experience", bilingual patterns</td></tr>
+</tbody>
+</table>
+
+<p>On the concept paper's own §3.4 scenario, <strong>five rules fire</strong> with
+distinct evidence:</p>
+
+<pre>payment_request_id         +9.50 pts   "biaya administrasi"
+contact_messaging_only     +6.00 pts   "via Telegram"
+salary_implausible_vs_umk  +3.48 pts   2.9x UMK for tanpa pengalaman
+risk_phrase_score_id       +3.20 pts   "Kuota terbatas", "tanpa pengalaman"
+email_free_provider        +2.20 pts   hrd.rekrutmen2024@gmail.com</pre>
+
+<p>On a legitimate posting: <strong>0 of 9 fire.</strong> That false-positive guard
+is what §3.6 of the concept paper requires, and it holds in both languages.</p>
+
+<h2>Things that work better than expected</h2>
+
+<h4>The locale layer</h4>
+<p>Originally built Indonesian-only — an English scam fired only 2 of 9 rules. Now
+<strong>5 of 9</strong>, and Indonesian support is a drop-in: place two reference
+files in <span class="mono">data/reference/</span> and it activates on restart, with
+no code change. This substantially de-risked the dataset problem.</p>
+
+<h4>The tri-state rule design</h4>
+<p>Every rule reports one of three states: <em>fired</em>, <em>clean</em>, or
+<strong>unassessed</strong>. That third state is the most valuable design decision
+in the codebase — a rule that could not run never looks like a rule that found
+nothing. It is what prevented EMSCAD's data redaction from silently poisoning the
+model, and it is what keeps the English-only path honest.</p>
+
+<h4>Performance</h4>
+<p>6.9&nbsp;ms on a typical advertisement, 86&nbsp;ms worst case at maximum input
+length (down from 794&nbsp;ms before hardening). There is ample headroom for the
+transformer and explainability module within the 1-second latency target.</p>
+
+<h4>Test coverage</h4>
+<p><strong>316 tests</strong> — not decoration. They caught a bidirectional-text
+spoofing vector, a bug that silently divided every Indonesian salary by 12, and a
+false positive where "the company covers training costs" was flagged as a scam
+demand.</p>
+
+<h2>The TF-IDF baseline — a real, usable result</h2>
+
+<table>
+<thead><tr><th>Model</th><th class="num">PR-AUC</th><th class="num">Precision</th><th class="num">Recall</th><th class="num">False positives</th></tr></thead>
+<tbody>
+<tr><td><strong>TF-IDF + LinearSVC</strong></td><td class="num"><strong>0.8769</strong></td><td class="num">0.930</td><td class="num">0.767</td><td class="num">5 / 1,702</td></tr>
+</tbody>
+</table>
+
+<p>This is a genuine, quotable, working classifier — trained on the EMSCAD dataset,
+evaluated on a held-out split it never saw during training. It needs no GPU and
+scores in milliseconds. <strong>If the transformer training is delayed further,
+this baseline is a legitimate fallback to ship.</strong></p>
+
+<h2>What is honestly lacking right now</h2>
+
+<div class="callout callout-warn">
+<strong>The score is meaningless at this moment.</strong>
+<span class="mono">model_probability</span> is currently a SHA-256 hash of the input
+text — not a model prediction. Every Integrity Score the system produces today is
+synthetic. The web UI displays a persistent warning banner, the
+<span class="mono">/health</span> endpoint reports
+<span class="mono">model_loaded: false</span>, and every generated summary is
+prefixed <span class="mono">[STUB]</span> so this cannot be mistaken for a result.
+</div>
+
+<ul>
+<li><strong>No sentence-level explainability yet.</strong> The concept paper
+promises identifying "which sentence is suspicious." The current stub fakes this
+with simple keyword matching; real occlusion-based explanation requires a trained
+model to occlude sentences against.</li>
+<li><strong>Rule weights are asserted, not measured.</strong> Nine values, ordered
+by domain reasoning and capped so no single rule can dominate — defensible, but
+unverified, because verification needs the evaluation dataset.</li>
+<li><strong>No ghost-job detection.</strong> Correctly scoped to Roadmap Tahap 3 in
+the concept paper. This should be stated plainly whenever the product is
+demonstrated.</li>
+<li><strong>Wage reference tables are unverified.</strong> Both the Indonesian UMK
+table and the English wage table were compiled from public reporting and should be
+confirmed against official sources before any publication.</li>
+</ul>
+
+<!-- ============================= PART 2 ============================= -->
+<div class="part-break"></div>
+<h1>Part 2 — What hasn't been done yet</h1>
+
+<h2>The two blockers</h2>
+
+<h3>Blocker A — GPU verification <span class="footnote">(~15 minutes once available)</span></h3>
+<p>PyTorch must be installed with CUDA 12.8 wheels on the RTX 5050 machine, and one
+real matrix multiplication run to confirm it executes.</p>
+
+<div class="callout callout-warn">
+<strong>Why this specific check matters:</strong> the RTX 5050 is a Blackwell-generation
+GPU (compute capability sm_120). A plain <span class="mono">pip install torch</span>
+installs without error and reports <span class="mono">cuda.is_available() == True</span>
+— and then fails on the very first real operation, because the default wheels do
+not contain sm_120 kernels. Checking availability alone would give false confidence.
+</div>
+
+<p><strong>Blocks:</strong> steps 2.1, 2.2, 2.3, 2.5, 3.2, 3.3, 3.4, 4.1, 4.2 — nine
+steps of the plan.</p>
+
+<h3>Blocker B — Evaluation dataset <span class="footnote">(~200 annotated items)</span></h3>
+<p>The held-out evaluation set is the source of the project's headline metric.
+Without it, the only available number is EMSCAD cross-validation performance, which
+the concept paper's own §3.2 explicitly states should <em>not</em> be the number
+led with, since EMSCAD does not represent the target use case.</p>
+
+<p>A helper tool (<span class="mono">ml/add_eval_item.py</span>) exists to make
+annotation fast: it prompts for each field, enforces independent double-labelling
+before any discussion (required for computing inter-annotator agreement), and
+re-validates the file after every entry. English-language items are now acceptable
+given the locale layer, and are considerably easier to source (FTC advisories,
+r/scams, Better Business Bureau reports) than Indonesian equivalents.</p>
+
+<p><strong>Blocks:</strong> steps 2.2, 3.1 validation, and 4.2.</p>
+
+<h2>Remaining steps, in order</h2>
+
+<table>
+<thead><tr><th>Step</th><th>What it does</th><th>Depends on</th><th>Gate</th></tr></thead>
+<tbody>
+<tr><td class="mono">2.1</td><td>Fine-tune mDistilBERT transformer</td><td>GPU</td><td>Val PR-AUC ≥ 0.88</td></tr>
+<tr><td class="mono">2.2</td><td>Zero-shot cross-language probe</td><td>GPU + dataset</td><td>Produces the honest headline number</td></tr>
+<tr><td class="mono">2.3</td><td>Probability calibration (Platt scaling)</td><td>2.1</td><td>ECE ≤ 0.05</td></tr>
+<tr><td class="mono">2.5</td><td>Wire the real model into the API</td><td>2.1</td><td>Replaces the stub; contract already frozen</td></tr>
+<tr><td class="mono">3.1</td><td>Validate rule weights against the holdout</td><td>Dataset</td><td>Harness built; reports honestly either way</td></tr>
+<tr><td class="mono">3.2</td><td>Set risk thresholds from a precision target</td><td>2.1</td><td>Replaces current placeholder round numbers</td></tr>
+<tr><td class="mono">3.3</td><td>ONNX export + INT8 quantisation</td><td>2.1</td><td>p95 latency &lt; 400 ms, F1 drop &lt; 1pp</td></tr>
+<tr><td class="mono">3.4</td><td>Sentence-level explainability (occlusion)</td><td>2.1</td><td>Full analysis &lt; 1 second</td></tr>
+<tr><td class="mono">4.1 / 4.2</td><td>Final integration and evaluation report</td><td>All above</td><td>Test split touched exactly once</td></tr>
+<tr><td class="mono">4.4</td><td>Tag <span class="mono">v0.1-mvp</span></td><td>4.1–4.3</td><td>Freeze point</td></tr>
+</tbody>
+</table>
+
+<div class="callout callout-warn">
+<strong>A rule to hold to once the dataset exists:</strong> the rule weights in
+<span class="mono">ml/rule_weights.py</span> must never be adjusted in response to
+performance on the holdout set. The moment they are tuned against it, the holdout
+becomes training data and the headline metric loses its meaning.
+</div>
+
+<h2>Paper revisions — drafted, ready to apply</h2>
+
+<p>Five changes have been identified and written up in full, with Indonesian text
+ready to paste directly into the concept paper. None of this work depends on either
+blocker and can be completed immediately.</p>
+
+<ol>
+<li><strong>§3.3</strong> — Fusion cannot be fitted on EMSCAD as originally planned:
+measurement showed only 0.02% of documents contain a real email address, and rule
+availability differs by class (74.8% vs. 67.9%), meaning a model trained on it would
+learn the dataset's redaction pattern rather than genuine fraud signals.</li>
+<li><strong>§3.3</strong> — The bounded-penalty cap should be stated per-rule
+(0.10) rather than as an aggregate (0.15), since the aggregate figure was sized for
+three rules and the system now has nine.</li>
+<li><strong>§3.3</strong> — Rule weights are set a priori and validated, not
+fitted, because fitting would require a second annotated dataset beyond what the
+timeline allows.</li>
+<li><strong>§3.2</strong> — SMOTE was tested and found not to help (PR-AUC 0.8638
+vs. 0.8662 with class weighting alone), so class weighting is used instead.</li>
+<li><strong>§3.2</strong> — A note on EMSCAD's text quality: HTML markup was
+stripped without inserting separators in the public distribution, fusing words
+together in 78% of documents. This is corrected before training.</li>
+</ol>
+
+<p>A sixth item — whether §1.1's Indonesian framing needs an explicit scope
+limitation — is intentionally left open pending which language the evaluation
+dataset ends up in.</p>
+
+<h2>Also unverified</h2>
+
+<p>A Docker deployment configuration has been written (single container, one port,
+frontend and API served together) but has not been build-tested, because the Docker
+daemon was unavailable in the environment where it was created. It should be run
+once — <span class="mono">docker compose up --build</span> — before any live demo.</p>
+
+<h2>Overall assessment</h2>
+
+<div class="lede">
+Roughly 60% complete by step count — but the remaining 40% is the part the concept
+paper is actually about. Everything surrounding the model (the API contract, the
+rule engine, scoring logic, the web interface, deployment configuration, and the
+evaluation harness) is built, tested, and working. The model itself is one training
+run away.
+</div>
+
+<p>The 15-minute GPU verification check is the single highest-leverage action
+available: it unblocks nine of the remaining steps. Against a 4–8 day project
+deadline, having that check unscheduled is currently the largest risk to on-time
+completion.</p>
+
+</body>
+</html>

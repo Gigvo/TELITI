@@ -1,0 +1,27 @@
+# TELITI — one container, one port.
+#
+#   docker compose up --build
+#   open http://localhost:8000
+#
+# The frontend is built into the image and served by FastAPI, so there is no CORS
+# and no reverse proxy to configure. That is what makes a demo survive an
+# unfamiliar network.
+
+services:
+  teliti:
+    build: .
+    image: teliti:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Where the built React bundle lives inside the image.
+      TELITI_STATIC_DIR: /app/web_dist
+    volumes:
+      # Model artifacts are mounted, not baked in: the image stays small and
+      # reproducible, and a retrained model is a restart rather than a rebuild.
+      # Read-only — the service must never write to them.
+      - ./artifacts:/app/artifacts:ro
+      # Locale resources. Mounted so Indonesian can be added without rebuilding:
+      # drop the files in and restart (see docs/LOCALES.md).
+      - ./data/reference:/app/data/reference:ro
+    restart: unless-stopped

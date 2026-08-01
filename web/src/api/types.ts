@@ -81,6 +81,12 @@ export interface AnalyzeResponse {
   sentence_evidence: SentenceEvidence[];
   rule_hits: RuleHit[];
   extracted_fields: ExtractedFields;
+  /**
+   * The exact text that was scored, after server-side sanitisation. All spans
+   * index THIS string — render it rather than the raw submission, or highlights
+   * drift from what was actually analysed.
+   */
+  analysed_text: string;
   locale: string;
   locale_detected: string;
   /**

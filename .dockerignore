@@ -1,0 +1,31 @@
+# Keep the build context small and the image free of anything not needed at runtime.
+
+.git/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Corpora and derived splits — never in an image.
+data/raw/
+data/processed/
+
+# Model artifacts are MOUNTED at runtime, not baked in.
+artifacts/
+
+node_modules/
+web/node_modules/
+web/dist/
+
+notebooks/
+tests/
+docs/
+*.md
+!README.md
+
+.env
+.env.*
+.vscode/
+.idea/
+*.log

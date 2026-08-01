@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
-import { LOADED_HEALTH, SCAM_RESPONSE, STUBBED_HEALTH } from "./test/fixtures";
+import { LOADED_HEALTH, SCAM_RESPONSE, SCAM_TEXT, STUBBED_HEALTH } from "./test/fixtures";
 
 function mockFetch(health = STUBBED_HEALTH, analyze: unknown = SCAM_RESPONSE, ok = true) {
   return vi.fn(async (url: string | URL) => {
@@ -134,10 +134,6 @@ describe("App", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: /Scam \(English\)/i }));
-    const analysed = (
-      screen.getByLabelText(/Paste the job advertisement/i) as HTMLTextAreaElement
-    ).value.trim();
-
     await user.click(screen.getByRole("button", { name: /^Analyse$/i }));
     await screen.findByText("21");
 
@@ -146,6 +142,6 @@ describe("App", () => {
     await user.type(textarea, "completely different text that is long enough to pass");
 
     const highlighted = document.querySelector(".highlighted") as HTMLElement;
-    expect(highlighted.textContent).toBe(analysed);
+    expect(highlighted.textContent).toBe(SCAM_TEXT);
   });
 });

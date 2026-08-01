@@ -14,7 +14,7 @@
  *    read as a complete one.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ApiError, analyze, health } from "./api/client";
 import type { AnalyzeResponse, HealthResponse } from "./api/types";
@@ -36,10 +36,10 @@ export default function App() {
   const [serverHealth, setServerHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState(false);
 
-  // The text that produced `result`. Highlighting must slice the string that was
-  // actually analysed — if the user edits the box afterwards, the offsets from the
-  // previous response no longer describe what is on screen.
-  const analysedText = useRef("");
+  // Highlighting slices `result.analysed_text` — the server's sanitised copy —
+  // never the textarea. Two reasons: the user may edit the box after analysing,
+  // and sanitisation strips bidirectional overrides, so rendering the raw
+  // submission could display text that differs from what was scored.
 
   useEffect(() => {
     health()
@@ -57,9 +57,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const response = await analyze({ text: trimmed });
-      analysedText.current = trimmed;
-      setResult(response);
+      setResult(await analyze({ text: trimmed }));
     } catch (err) {
       setResult(null);
       if (err instanceof ApiError) {
@@ -249,7 +247,7 @@ export default function App() {
           <section className="panel">
             <h2>Evidence in context</h2>
             <HighlightedText
-              text={analysedText.current}
+              text={result.analysed_text}
               ruleHits={result.rule_hits}
               sentences={result.sentence_evidence}
             />

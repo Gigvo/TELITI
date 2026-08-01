@@ -172,6 +172,14 @@ def extract_monthly_salary(text: str, locale: Locale) -> tuple[int, Match] | Non
     bottom of its own range is the conservative choice, since the top is marketing.
     """
     lowered = text.lower()
+
+    # A salary keyword must appear SOMEWHERE before any number is worth inspecting.
+    # Without this, every number-shaped token in a 20,000-character document built a
+    # context window and ran two regexes over it — 68 ms, the single slowest rule.
+    # One pre-scan makes the common case (no salary mentioned) nearly free.
+    if not _SALARY_CONTEXT.search(lowered):
+        return None
+
     pattern = _amount_pattern(locale)
     # Below this, a figure is a fee or a typo rather than a monthly wage.
     floor = 100_000 if locale.dot_is_thousands else 100

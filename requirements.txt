@@ -26,6 +26,11 @@ pyyaml>=6.0
 onnxruntime>=1.20
 
 # --- Dev / test ---
+# Installed in the Docker image too. `httpx` is small and FastAPI's TestClient
+# needs it; `pytest` is ~5 MB and lets the container self-verify. Move both to a
+# requirements-dev.txt if image size ever becomes a real constraint — it is not
+# one at this stage, and being able to run the suite inside the image is worth
+# more than the megabytes.
 pytest>=8.0
 httpx>=0.28
 

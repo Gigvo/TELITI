@@ -58,6 +58,7 @@ export const SCAM_RESPONSE: AnalyzeResponse = {
     phones: [],
     urls: [],
   },
+  analysed_text: SCAM_TEXT,
   locale: "en",
   locale_detected: "en",
   unassessed_rules: [],
