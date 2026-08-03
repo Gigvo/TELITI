@@ -57,25 +57,42 @@ additive. See [MVP_PLAN.md](MVP_PLAN.md) for the full plan and gates.
 
 ---
 
-## ⛔ Blocked — waiting on your team
+## 🔄 In progress
 
-- [ ] **0.2** GPU verification on the RTX 5050 box (cu128 wheels + a real matmul)
-      **Blocks all of step 2.1.** ~15 minutes.
+- [ ] **2.1** Fine-tuning mDistilBERT **on CPU, this machine** (started 2026-08-03)
+      The RTX 5050 box could not be used, so training runs here instead.
+      ~3.1 hours for 3 epochs (2,349 steps). Resumable via
+      `python ml/train_transformer.py --resume` if interrupted.
+
+      **CPU adaptations, both measured before being chosen:**
+      - Frozen embeddings + bottom 3 layers → 21.9M trainable of 135.3M.
+        Measured 7.44 → 4.45 s/step. Embeddings alone are 92M of the parameters.
+      - `max_length` 256 (covers ~190 words; truncation keeps the head, where the
+        title, salary promise and opening pitch live)
+      - The same script auto-detects CUDA, so a GPU rerun later is
+        `--no-freeze --epochs 3` with no code change.
+
+## ⛔ Still blocked — waiting on your team
+
 - [ ] **1.5** Holdout evaluation set, ~200 items
-      Blocks the headline metric, 2.2, and 3.1 validation.
-      Run `python ml/validate_eval_set.py` while annotating.
+      Blocks the headline metric (2.2), 3.1 validation, and 4.2.
+      Run `python ml/add_eval_item.py` to add entries,
+      `python ml/validate_eval_set.py` to check progress.
 
-      **English is now acceptable** and far easier to source (FTC / Action Fraud
+      **English is acceptable** and far easier to source (FTC / Action Fraud
       advisories, r/scams, BBB reports). Same schema either way.
+      **This is now the only external blocker.**
 
 ---
 
 ## ⬜ Not started
 
 ### Day 2
-- [ ] **2.1** Fine-tune mDistilBERT — *needs 0.2* — Gate: val PR-AUC ≥ 0.88
-- [ ] **2.2** Zero-shot cross-language probe — *needs 1.5 + 2.1*
-- [ ] **2.3** Platt calibration — *needs 2.1* — Gate: ECE ≤ 0.05
+- [~] **2.1** Fine-tune mDistilBERT — **running now on CPU** — Gate: val PR-AUC ≥ 0.88
+- [ ] **2.2** Zero-shot cross-language probe — *needs 1.5*
+- [~] **2.3** Platt calibration — **code written and unit-tested**, awaiting the model
+      `ml/calibration.py` + `ml/calibrate.py`, 20 tests passing against synthetic
+      distributions of known calibration. Runs as soon as 2.1 finishes.
 - [ ] **2.5** Wire the real model into the API — *needs 2.1*
 
 ### Day 3
