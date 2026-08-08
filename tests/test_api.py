@@ -243,3 +243,31 @@ def test_unavailable_model_returns_503_not_a_fake_score(monkeypatch, scam_text):
         response = unloaded_client.post(ENDPOINT, json={"text": scam_text})
     assert response.status_code == 503
     assert "not available" in response.json()["detail"].lower()
+
+
+def test_extra_cors_origins_come_from_the_environment(monkeypatch):
+    """A deployed frontend is a different origin from the API.
+
+    Hardcoding localhost would block the real site; a wildcard would let any page
+    on the internet drive the API through a visitor's browser. The allowlist is
+    configured per deployment instead.
+    """
+    import importlib
+
+    monkeypatch.setenv("TELITI_ALLOWED_ORIGINS", "https://teliti.vercel.app, https://x.dev")
+    import api.main as main
+
+    reloaded = importlib.reload(main)
+    try:
+        cors = next(
+            m for m in reloaded.app.user_middleware if "CORS" in str(m.cls)
+        )
+        origins = cors.kwargs["allow_origins"]
+        assert "https://teliti.vercel.app" in origins
+        assert "https://x.dev" in origins, "whitespace around commas must be tolerated"
+        assert "http://localhost:5173" in origins, "local development must keep working"
+        assert "*" not in origins
+        assert cors.kwargs["allow_credentials"] is False
+    finally:
+        monkeypatch.delenv("TELITI_ALLOWED_ORIGINS", raising=False)
+        importlib.reload(main)

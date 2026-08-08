@@ -11,8 +11,16 @@ __pycache__/
 data/raw/
 data/processed/
 
-# Model artifacts are MOUNTED at runtime, not baked in.
-artifacts/
+# Model artifacts ARE baked into the image (see Dockerfile). A managed host has
+# no volume to mount, so a model that is not in the image is not on the server.
+#
+# The training checkpoint is a different matter: 1.6 GB of optimiser and
+# scheduler state that exists only to resume an interrupted run. Inference never
+# reads it, and it is three times the size of the model it accompanies.
+artifacts/scam_model/checkpoint/
+artifacts/**/optimizer.pt
+artifacts/**/scheduler.pt
+artifacts/**/rng_state.pth
 
 node_modules/
 web/node_modules/

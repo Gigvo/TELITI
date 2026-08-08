@@ -631,3 +631,220 @@ mark.hl-sentence {
 .report-done {
   margin-top: 18px;
 }
+
+/* ==========================================================================
+   Responsive
+   ==========================================================================
+   The two-column grid already collapses at 900px. What follows handles the
+   things that collapsing alone does not fix: touch targets below the 44px
+   accessibility minimum, a 108px gauge crowding the risk label on a narrow
+   screen, and long unbroken strings (fetched URLs, contact emails) forcing the
+   whole page to scroll sideways.
+
+   Horizontal page scroll is treated as a bug throughout: on a phone it makes
+   every tap land slightly wrong. */
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Long URLs and emails appear in extracted fields and in the fetched-source
+   line. Without this they set a minimum width the viewport cannot satisfy. */
+.fields dd,
+.meta-line,
+.rule-evidence {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- tablets and large phones ---------- */
+
+@media (max-width: 760px) {
+  body {
+    font-size: 14.5px;
+  }
+
+  .app {
+    padding: 18px 14px 56px;
+  }
+
+  .masthead {
+    gap: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .masthead h1 {
+    font-size: 22px;
+  }
+
+  .masthead .tagline {
+    font-size: 12.5px;
+  }
+
+  .columns {
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .panel + .panel,
+  .report-form,
+  .report-open {
+    margin-top: 14px;
+  }
+
+  /* A 260px box eats most of a phone screen before the user can see anything
+     else. Still comfortably several lines. */
+  textarea {
+    min-height: 170px;
+  }
+
+  .highlighted {
+    max-height: 300px;
+    font-size: 13px;
+  }
+
+  /* Below the WCAG 44px target these are hard to hit accurately. */
+  .btn-primary,
+  .btn-ghost,
+  .mode-tab,
+  .report-open {
+    min-height: 42px;
+  }
+
+  .btn-ghost {
+    padding: 9px 14px;
+  }
+
+  .controls {
+    gap: 8px;
+  }
+
+  /* The counter sits right of the buttons on desktop; on a phone that squeezes
+     it to a couple of characters. Give it its own line. */
+  .charcount {
+    margin-left: 0;
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .report-option {
+    padding: 8px 0;
+  }
+}
+
+/* ---------- phones ---------- */
+
+@media (max-width: 480px) {
+  .app {
+    padding: 14px 11px 48px;
+  }
+
+  /* Gauge and label side by side leaves ~120px for the summary. Stacking gives
+     the text the full width. */
+  .score-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .gauge,
+  .gauge svg {
+    width: 92px;
+    height: 92px;
+  }
+
+  .gauge-value strong {
+    font-size: 26px;
+  }
+
+  /* Rule title and its badge on one line squeezes the title to a word or two. */
+  .rule-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  /* Label above value, so neither is compressed to a sliver. */
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .fields dt {
+    margin-top: 7px;
+  }
+
+  .fields dd {
+    font-size: 12px;
+  }
+
+  .banner {
+    padding: 9px 11px;
+    font-size: 12.5px;
+  }
+
+  .legend {
+    gap: 10px;
+  }
+
+  .mode-tab {
+    flex: 1;
+    padding: 9px 6px;
+    font-size: 13px;
+  }
+}
+
+/* ---------- pointer-coarse devices at any width ---------- */
+/* Catches tablets in landscape, which are wide enough to miss the width
+   queries above but still touch-driven. */
+
+@media (pointer: coarse) {
+  .btn-primary,
+  .btn-ghost,
+  .mode-tab {
+    min-height: 42px;
+  }
+
+  .report-option input {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ---------- print ---------- */
+/* Someone will screenshot or print a result as evidence. Give them a legible
+   page rather than dark chrome. */
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    border-color: #ccc;
+    break-inside: avoid;
+  }
+
+  .report-open,
+  .report-form,
+  .mode-tabs,
+  .controls {
+    display: none;
+  }
+
+  .highlighted {
+    max-height: none;
+    overflow: visible;
+  }
+}

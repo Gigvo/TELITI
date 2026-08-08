@@ -104,10 +104,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Vite dev server. Tighten before any public deployment (Day 7).
+# Allowed browser origins.
+#
+# The Vite dev server is always permitted so local development needs no setup.
+# Deployed frontends are added through TELITI_ALLOWED_ORIGINS, comma-separated:
+#
+#     TELITI_ALLOWED_ORIGINS=https://teliti.vercel.app,https://teliti-git-dev.vercel.app
+#
+# An allowlist rather than "*": the API is a different origin from the frontend
+# once deployed, and a wildcard would let any site on the internet drive it using
+# a visitor's browser. `allow_credentials` stays False — no cookies are involved,
+# and the combination of credentials with a broad origin list is the classic way
+# CORS gets misconfigured into a vulnerability.
+_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_EXTRA_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("TELITI_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_DEV_ORIGINS + _EXTRA_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],

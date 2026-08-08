@@ -160,7 +160,14 @@ def load_thresholds(path: str = str(THRESHOLDS_PATH)) -> tuple[dict[str, int], b
     """
     file = Path(path)
     if not file.is_file():
-        return dict(PLACEHOLDER_THRESHOLDS), False
+        # Not on disk: try the Hugging Face repo, so a fresh clone gets fitted
+        # boundaries rather than the arbitrary placeholders §3.3 warns against.
+        from api.artifacts import resolve_file
+
+        resolved = resolve_file(Path(path).name)
+        if resolved is None:
+            return dict(PLACEHOLDER_THRESHOLDS), False
+        file = resolved
     try:
         data = json.loads(file.read_text(encoding="utf-8"))
         bounds = {

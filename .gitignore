@@ -46,3 +46,5 @@ web/node_modules/
 # Appeal / correction reports — contain user-submitted advertisement text and
 # optional contact details. Never commit these.
 data/reports/
+
+eval/results_dryrun.md

@@ -25,6 +25,23 @@ pyyaml>=6.0
 # --- Inference runtime (Day 3) ---
 onnxruntime>=1.20
 
+# --- Model serving ---
+#
+# These are REQUIRED to serve. api/model.py imports them lazily inside the load
+# path, so leaving them out does not crash the app — it starts, reports
+# model_loaded=false on /health, and returns 503 from every analyse call. That
+# failure looks like a missing artefact rather than a missing dependency, which
+# is why it is called out here.
+#
+# On Linux, plain `pip install torch` pulls the CUDA build: ~2.5 GB of GPU
+# kernels that a CPU server will never execute. Install the CPU wheel instead
+# (~200 MB) — the Dockerfile does this explicitly:
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+torch>=2.6
+transformers>=5.0
+
 # --- Dev / test ---
 # Installed in the Docker image too. `httpx` is small and FastAPI's TestClient
 # needs it; `pytest` is ~5 MB and lets the container self-verify. Move both to a
@@ -35,7 +52,6 @@ pytest>=8.0
 httpx>=0.28
 
 # --- Training box only (do NOT install on the CPU serving box) ---
-# transformers>=5.0
 # datasets
 # accelerate
 # evaluate

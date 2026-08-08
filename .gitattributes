@@ -1,0 +1,19 @@
+# Normalise line endings.
+#
+# The shell script matters most: git on Windows with core.autocrlf=true checks
+# out LF files as CRLF, and a CRLF shebang makes Linux try to execute the
+# interpreter "/bin/sh\r", which does not exist. The container then dies with
+# "exec format error" or "no such file or directory" — pointing at /bin/sh,
+# which obviously does exist, so the message sends you looking in the wrong
+# place entirely.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Model weights and tokenizer data are binary; never let git touch their bytes.
+*.safetensors binary
+*.bin binary
+*.pt binary
+*.pth binary
+*.onnx binary

@@ -11,7 +11,15 @@ import type {
   ReportResponse,
 } from "./types";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "";
+// Trailing slashes are stripped because every path below starts with one, and
+// "https://api.example.com/" + "/api/v1/analyze" is a double slash. FastAPI
+// answers that with 405 Method Not Allowed — which reads as "wrong HTTP method"
+// and sends you looking at the request instead of at the environment variable
+// someone pasted with a trailing slash.
+//
+// Empty (the default) means same-origin: correct for the Docker image, which
+// serves this bundle itself, and for the Vite dev proxy.
+const BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
 export class ApiError extends Error {
   // Declared explicitly rather than as constructor parameter properties: the Vite

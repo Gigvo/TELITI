@@ -40,11 +40,10 @@ from pathlib import Path
 
 log = logging.getLogger("teliti.model")
 
-MODEL_DIR = Path(os.environ.get("TELITI_MODEL_DIR", "artifacts/scam_model"))
-DEPLOYMENT_CALIBRATOR = Path(
-    os.environ.get("TELITI_CALIBRATOR", "artifacts/calibrator_deployment.json")
-)
-FALLBACK_CALIBRATOR = Path("artifacts/calibrator.json")
+from api.artifacts import MODEL_DIR, resolve_file, resolve_model_dir, resolve_model_file
+
+DEPLOYMENT_CALIBRATOR_NAME = "calibrator_deployment.json"
+FALLBACK_CALIBRATOR_NAME = "calibrator.json"
 
 #: Must match the `max_length` the model was fine-tuned with, or the input
 #: distribution at serving time differs from training in a way nothing will flag.
@@ -84,21 +83,28 @@ class ScamModel:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         torch.set_num_threads(os.cpu_count() or 4)
 
-        self._tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+        # Local directory if present, otherwise the Hub repo id. from_pretrained
+        # accepts either, so there is no branch here — see api/artifacts.py.
+        source, origin = resolve_model_dir()
+
+        self._tokenizer = AutoTokenizer.from_pretrained(source)
         self._model = (
-            AutoModelForSequenceClassification.from_pretrained(MODEL_DIR).to(device).eval()
+            AutoModelForSequenceClassification.from_pretrained(source).to(device).eval()
         )
 
         calibrator_path, calibrator_name = None, "none"
-        if DEPLOYMENT_CALIBRATOR.is_file():
-            calibrator_path, calibrator_name = DEPLOYMENT_CALIBRATOR, "deployment"
-        elif FALLBACK_CALIBRATOR.is_file():
-            calibrator_path, calibrator_name = FALLBACK_CALIBRATOR, "emscad"
-            log.warning(
-                "Using the EMSCAD calibrator: scores will cluster near 100 on "
-                "Indonesian input. Run `python ml/fit_thresholds.py` to produce %s.",
-                DEPLOYMENT_CALIBRATOR,
-            )
+        deployment = resolve_file(DEPLOYMENT_CALIBRATOR_NAME)
+        if deployment is not None:
+            calibrator_path, calibrator_name = deployment, "deployment"
+        else:
+            fallback = resolve_file(FALLBACK_CALIBRATOR_NAME)
+            if fallback is not None:
+                calibrator_path, calibrator_name = fallback, "emscad"
+                log.warning(
+                    "Using the EMSCAD calibrator: scores will cluster near 100 on "
+                    "Indonesian input. Run `python ml/fit_thresholds.py` to produce %s.",
+                    DEPLOYMENT_CALIBRATOR_NAME,
+                )
 
         if calibrator_path is not None:
             self._calibrator = PlattCalibrator.from_dict(
@@ -108,8 +114,8 @@ class ScamModel:
             log.warning("No calibrator found — probabilities will be uncalibrated.")
 
         version = f"mdistilbert-{MAX_LENGTH}"
-        summary = MODEL_DIR / "training_summary.json"
-        if summary.is_file():
+        summary = resolve_model_file("training_summary.json")
+        if summary is not None:
             try:
                 data = json.loads(summary.read_text(encoding="utf-8"))
                 pr_auc = data.get("final", {}).get("pr_auc")
