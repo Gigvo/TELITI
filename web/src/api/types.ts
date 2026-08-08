@@ -65,8 +65,14 @@ export interface ExtractedFields {
   urls: string[];
 }
 
+/**
+ * Exactly one of `text` or `url`. The server rejects both-or-neither rather than
+ * silently preferring one — a user who supplied a link AND text should never get a
+ * score for the text while believing the link was checked.
+ */
 export interface AnalyzeRequest {
-  text: string;
+  text?: string;
+  url?: string;
   source_channel?: SourceChannel;
   profile?: "text_only" | "structured";
   locale?: string;
@@ -87,6 +93,20 @@ export interface AnalyzeResponse {
    * drift from what was actually analysed.
    */
   analysed_text: string;
+  /**
+   * False when the rule layer is ADVISORY — its findings are real but did not move
+   * the score, and every `contribution` is 0.0. Disabled on measured evidence: the
+   * rules cost 0.064 PR-AUC and five times the false positives on the Indonesian
+   * holdout. The UI must not present these as if they changed the number.
+   */
+  rule_layer_enabled: boolean;
+  /**
+   * True while `sentence_evidence` comes from keyword matching rather than model
+   * occlusion. The UI must not imply the model pointed at those sentences.
+   */
+  sentence_evidence_approximate: boolean;
+  /** Set when the ad was fetched from a link. This is the URL after redirects. */
+  source_url: string | null;
   locale: string;
   locale_detected: string;
   /**
@@ -110,4 +130,35 @@ export interface HealthResponse {
   thresholds_loaded: boolean;
   locales_available: string[];
   locale_resources: Record<string, string[]>;
+}
+
+/**
+ * Appeal / label correction — concept paper §3.6.
+ *
+ * ⚠️ Filing this STORES the advertisement text. Analysis stores nothing, so the UI
+ * must say so before the user submits.
+ */
+export type CorrectionType =
+  | "false_positive"
+  | "false_negative"
+  | "wrong_evidence"
+  | "other";
+
+export interface ReportRequest {
+  correction: CorrectionType;
+  text: string;
+  reported_score?: number;
+  reported_label?: RiskLabel;
+  request_id?: string;
+  comment?: string;
+  contact?: string;
+}
+
+export interface ReportResponse {
+  report_id: string;
+  received_at: string;
+  message: string;
+  stored_text: boolean;
+  /** Always false — reports are quarantined for human review, never retrained on. */
+  used_for_training: boolean;
 }

@@ -42,3 +42,7 @@ web/.vite/
 # Frontend build output
 web/dist/
 web/node_modules/
+
+# Appeal / correction reports — contain user-submitted advertisement text and
+# optional contact details. Never commit these.
+data/reports/

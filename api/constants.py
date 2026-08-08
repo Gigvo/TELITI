@@ -43,8 +43,15 @@ CONTROL_CHAR_PATTERN = (
 )
 
 #: Cap on how many sentences get the leave-one-out treatment in the XAI module.
-#: Each one is a forward pass; this is what keeps us inside the <1s budget.
-MAX_SENTENCES_FOR_OCCLUSION = 60
+#: Each one is a forward pass, so this is what keeps the endpoint inside its budget.
+#:
+#: Measured on this machine (CPU, batched): ~110 ms fixed cost plus ~63 ms per
+#: sentence. At the previous cap of 60 a long advertisement took 1,817 ms; twelve
+#: keeps the worst case near 870 ms, under the one-second target from §3.6.
+#:
+#: Sentences beyond the cap are the ones the model truncates away anyway, so they
+#: are reported as neutral rather than scored — see `api/explain.py`.
+MAX_SENTENCES_FOR_OCCLUSION = 12
 TOP_K_SENTENCE_EVIDENCE = 5
 
 # --- Risk labels ------------------------------------------------------------

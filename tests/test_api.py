@@ -214,11 +214,15 @@ def test_identical_text_scores_identically(client, scam_text):
     assert first["model_probability"] == second["model_probability"]
 
 
-def test_sentence_evidence_is_marked_approximate(client, scam_text):
-    """It is keyword matching, not model occlusion (step 3.4). The response must say
-    so, or the UI implies the model pointed at those sentences when it did not."""
+def test_sentence_evidence_is_no_longer_approximate(client, scam_text):
+    """Inverted at step 3.4.
+
+    Until then this asserted True, because the evidence came from a keyword list and
+    the UI had to say so. It is now leave-one-out occlusion — the model's own
+    reasoning — so the flag must be False and the caveat must disappear from the UI.
+    """
     body = client.post(ENDPOINT, json={"text": scam_text}).json()
-    assert body["sentence_evidence_approximate"] is True
+    assert body["sentence_evidence_approximate"] is False
 
 
 def test_unavailable_model_returns_503_not_a_fake_score(monkeypatch, scam_text):

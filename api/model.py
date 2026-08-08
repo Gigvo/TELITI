@@ -157,26 +157,66 @@ class ScamModel:
 
     def probability(self, text: str) -> float:
         """Calibrated p(scam) for one advertisement."""
+        return self.probabilities([text])[0]
+
+    def margins(self, texts: list[str]) -> list[float]:
+        """Raw logit margins (logit_scam − logit_real), before calibration.
+
+        Unbounded, unlike a probability. That matters for explanation: when the model
+        is confident the probability saturates near 1.0, and removing a sentence moves
+        it by ~0.001 even when the effect is large. The margin keeps moving, so
+        `api/explain.py` measures influence here rather than in probability space.
+        """
         self._ensure()
         if not self.info.loaded:
             raise RuntimeError("Text model is not loaded.")
+        if not texts:
+            return []
 
         import torch
 
         batch = self._tokenizer(
-            text, truncation=True, max_length=MAX_LENGTH,
+            texts, truncation=True, max_length=MAX_LENGTH,
             padding="max_length", return_tensors="pt",
         ).to(self._model.device)
 
         with torch.no_grad():
             logits = self._model(**batch).logits.float()
 
-        # The calibrator was fitted on the logit MARGIN, not on a softmax output —
-        # applying it to a probability would squash through a sigmoid twice.
-        margin = float(logits[0, 1] - logits[0, 0])
+        return [float(m) for m in (logits[:, 1] - logits[:, 0]).cpu().numpy()]
+
+    def calibrate_margin(self, margin: float) -> float:
+        """Turn one logit margin into a calibrated probability.
+
+        Lets a caller reuse a margin it already has — the analyse endpoint needs both
+        the margin (for occlusion) and the probability (for the score), and computing
+        them from one forward pass rather than two halves the work.
+        """
+        self._ensure()
         if self._calibrator is not None:
             return float(self._calibrator.transform([margin])[0])
-        return 1.0 / (1.0 + pow(2.718281828459045, -margin))
+        import math
+
+        return 1.0 / (1.0 + math.exp(-margin))
+
+    def probabilities(self, texts: list[str]) -> list[float]:
+        """Calibrated p(scam) for several advertisements in one forward pass.
+
+        Batched because the explanation module scores one variant per sentence.
+        Twenty separate calls would pay the per-call overhead twenty times; one batch
+        of twenty does not.
+        """
+        if not texts:
+            return []
+
+        import numpy as np
+
+        margins = np.asarray(self.margins(texts))
+        # The calibrator was fitted on the logit MARGIN, not on a softmax output —
+        # applying it to a probability would squash through a sigmoid twice.
+        if self._calibrator is not None:
+            return [float(p) for p in self._calibrator.transform(margins)]
+        return [float(p) for p in 1.0 / (1.0 + np.exp(-margins))]
 
 
 #: Process-wide instance. Loading is lazy, so importing this is cheap.

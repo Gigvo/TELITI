@@ -19,17 +19,21 @@ import { useEffect, useMemo, useState } from "react";
 import { ApiError, analyze, health } from "./api/client";
 import type { AnalyzeResponse, HealthResponse } from "./api/types";
 import { HighlightedText } from "./components/HighlightedText";
+import { ReportForm } from "./components/ReportForm";
 import { RuleCard } from "./components/RuleCard";
 import { ScoreGauge } from "./components/ScoreGauge";
-import { EXAMPLES } from "./examples";
 
 // Mirrors MIN/MAX_TEXT_LENGTH in api/constants.py. Validating here too gives
 // instant feedback instead of a 422 round-trip.
 const MIN_LENGTH = 30;
 const MAX_LENGTH = 20000;
 
+type InputMode = "text" | "url";
+
 export default function App() {
+  const [mode, setMode] = useState<InputMode>("text");
   const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,16 +52,24 @@ export default function App() {
   }, []);
 
   const trimmed = text.trim();
+  const trimmedUrl = url.trim();
   const tooShort = trimmed.length > 0 && trimmed.length < MIN_LENGTH;
   const tooLong = trimmed.length > MAX_LENGTH;
-  const canSubmit = trimmed.length >= MIN_LENGTH && !tooLong && !loading;
+  const urlLooksValid = /^https?:\/\/.+\..+/i.test(trimmedUrl);
+
+  const canSubmit = loading
+    ? false
+    : mode === "text"
+      ? trimmed.length >= MIN_LENGTH && !tooLong
+      : urlLooksValid;
 
   async function handleAnalyze() {
     if (!canSubmit) return;
     setLoading(true);
     setError(null);
     try {
-      setResult(await analyze({ text: trimmed }));
+      // Exactly one field — the server rejects both-or-neither.
+      setResult(await analyze(mode === "text" ? { text: trimmed } : { url: trimmedUrl }));
     } catch (err) {
       setResult(null);
       if (err instanceof ApiError) {
@@ -70,7 +82,8 @@ export default function App() {
     }
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  // Shared by the textarea and the URL input, so the element type must cover both.
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       void handleAnalyze();
@@ -114,34 +127,67 @@ export default function App() {
         <section className="panel">
           <h2>Job advertisement</h2>
 
-          <div className="examples">
-            {EXAMPLES.map((example) => (
-              <button
-                key={example.id}
-                type="button"
-                className="btn-ghost"
-                onClick={() => {
-                  setText(example.text);
-                  setResult(null);
-                  setError(null);
-                }}
-              >
-                {example.label}
-              </button>
-            ))}
+          <div className="mode-tabs" role="tablist" aria-label="Input method">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "text"}
+              className={`mode-tab ${mode === "text" ? "is-active" : ""}`}
+              onClick={() => { setMode("text"); setError(null); }}
+            >
+              Paste text
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "url"}
+              className={`mode-tab ${mode === "url" ? "is-active" : ""}`}
+              onClick={() => { setMode("url"); setError(null); }}
+            >
+              From a link
+            </button>
           </div>
 
-          <label htmlFor="ad-text" className="sr-only">
-            Paste the job advertisement text
-          </label>
-          <textarea
-            id="ad-text"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Paste a job advertisement here — from WhatsApp, Telegram, Instagram, or a job board…"
-            spellCheck={false}
-          />
+          {mode === "text" ? (
+            <>
+              <label htmlFor="ad-text" className="sr-only">
+                Paste the job advertisement text
+              </label>
+              <textarea
+                id="ad-text"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Paste a job advertisement here — from WhatsApp, Telegram, Instagram, or a job board…"
+                spellCheck={false}
+              />
+            </>
+          ) : (
+            <>
+              <label htmlFor="ad-url" className="sr-only">
+                Link to the job posting
+              </label>
+              <input
+                id="ad-url"
+                type="url"
+                className="url-input"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="https://example.com/lowongan/…"
+                spellCheck={false}
+              />
+              {/* Setting expectations honestly: measured on real dataset URLs, about
+                  three in ten could be read. Most job-scam messages arrive on
+                  WhatsApp or Telegram and have no link at all. */}
+              <p className="hint">
+                Works on live job-board postings. Expired links, forum threads and
+                pages we cannot read will be declined — paste the text instead.
+                Messages from WhatsApp or Telegram have no link, so use{" "}
+                <strong>Paste text</strong> for those.
+              </p>
+            </>
+          )}
 
           <div className="controls">
             <button
@@ -154,12 +200,13 @@ export default function App() {
               {loading ? "Analysing…" : "Analyse"}
             </button>
 
-            {text.length > 0 && (
+            {(mode === "text" ? text.length : url.length) > 0 && (
               <button
                 type="button"
                 className="btn-ghost"
                 onClick={() => {
-                  setText("");
+                  if (mode === "text") setText("");
+                  else setUrl("");
                   setResult(null);
                   setError(null);
                 }}
@@ -169,19 +216,33 @@ export default function App() {
             )}
 
             <span
-              className={`charcount ${tooShort || tooLong ? "is-invalid" : ""}`}
+              className={`charcount ${
+                mode === "text" && (tooShort || tooLong) ? "is-invalid" : ""
+              }`}
               aria-live="polite"
             >
-              {tooShort
-                ? `${MIN_LENGTH - trimmed.length} more characters needed`
-                : tooLong
-                  ? `${trimmed.length - MAX_LENGTH} characters over the limit`
-                  : `${trimmed.length.toLocaleString()} characters`}
+              {mode === "url"
+                ? trimmedUrl.length === 0
+                  ? "Paste a link"
+                  : urlLooksValid
+                    ? "Link looks valid"
+                    : "Needs a full http(s) address"
+                : tooShort
+                  ? `${MIN_LENGTH - trimmed.length} more characters needed`
+                  : tooLong
+                    ? `${trimmed.length - MAX_LENGTH} characters over the limit`
+                    : `${trimmed.length.toLocaleString()} characters`}
             </span>
           </div>
         </section>
 
         {/* ---------------- result ---------------- */}
+        {/* One continuous right-hand column.
+            Previously the results lived in a SECOND `.columns` grid row, which only
+            began once the tallest cell of the first row ended. The input panel is
+            tall and the Analysis panel is short, so that left a large dead gap above
+            "Evidence in context". Stacking them in one column removes it. */}
+        <div className="results-column">
         <section className="panel" aria-live="polite">
           <h2>Analysis</h2>
 
@@ -220,18 +281,30 @@ export default function App() {
             </>
           )}
         </section>
-      </div>
 
-      {result && (
-        <div className="columns">
+          {result && (
+            <>
           <section className="panel">
-            <h2>Why this score</h2>
+            <h2>{result.rule_layer_enabled ? "Why this score" : "Additional observations"}</h2>
+
+            {!result.rule_layer_enabled && sortedHits.length > 0 && (
+              <div className="banner banner--info">
+                These checks are shown as <strong>context only</strong> — they did not
+                affect the score. Measured against real Indonesian advertisements they
+                made the result worse, so the score comes from the model alone.
+              </div>
+            )}
 
             {sortedHits.length === 0 ? (
               <p className="empty">No deterministic rules were triggered.</p>
             ) : (
               sortedHits.map((hit) => (
-                <RuleCard key={hit.rule_id} hit={hit} locale={result.locale} />
+                <RuleCard
+                  key={hit.rule_id}
+                  hit={hit}
+                  locale={result.locale}
+                  affectsScore={result.rule_layer_enabled}
+                />
               ))
             )}
 
@@ -246,11 +319,25 @@ export default function App() {
 
           <section className="panel">
             <h2>Evidence in context</h2>
+
+            {result.source_url && (
+              <p className="meta-line" style={{ marginTop: 0, marginBottom: 10 }}>
+                fetched from <code>{result.source_url}</code>
+              </p>
+            )}
+
             <HighlightedText
               text={result.analysed_text}
               ruleHits={result.rule_hits}
               sentences={result.sentence_evidence}
             />
+
+            {result.sentence_evidence_approximate && (
+              <p className="hint" style={{ marginTop: 8 }}>
+                Highlighted sentences are matched by keyword, not chosen by the model.
+                Treat them as a reading aid rather than as the model's reasoning.
+              </p>
+            )}
 
             {(result.extracted_fields.title ||
               result.extracted_fields.emails.length > 0 ||
@@ -297,8 +384,12 @@ export default function App() {
               </>
             )}
           </section>
+
+          <ReportForm key={result.request_id} result={result} />
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <footer className="footer-note">
         {result ? (

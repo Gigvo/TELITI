@@ -8,9 +8,9 @@ the fitted risk thresholds.
 analysis requests return 503 — the service starts and says so rather than refusing
 to start or, worse, returning invented numbers.
 
-One piece remains approximate: `sentence_evidence` still uses keyword matching
-rather than the occlusion-based explanation planned for step 3.4. It is marked
-`approximate: true` in the response.
+Sentence evidence comes from leave-one-out occlusion (step 3.4): each sentence is
+removed, the remainder re-scored, and the change in the model's logit margin reported
+as that sentence's influence. It is the model's own reasoning, not a keyword list.
 
 Run:
     uvicorn api.main:app --reload --port 8000
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -33,10 +32,12 @@ from fastapi.staticfiles import StaticFiles
 
 from api.constants import (
     API_PREFIX,
-    TOP_K_SENTENCE_EVIDENCE,
     disclaimer_for,
     privacy_note_for,
 )
+from api.explain import occlusion_evidence
+from api.feedback import store_report
+from api.fetch_url import UrlFetchError, fetch_job_ad
 from api.ingest import ingest
 from api.locale import detect_language, load_registry
 from api.model import MODEL_DIR, scam_model
@@ -48,11 +49,10 @@ from api.schemas import (
     AnalyzeResponse,
     ErrorResponse,
     HealthResponse,
-    Polarity,
+    ReportRequest,
+    ReportResponse,
     RiskLabel,
     RuleHit,
-    SentenceEvidence,
-    Span,
 )
 
 log = logging.getLogger("teliti")
@@ -127,72 +127,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
-# ---------------------------------------------------------------------------
-# Sentence evidence — interim, pending step 3.4
-# ---------------------------------------------------------------------------
-#
-# The concept paper (§3.1) promises "which sentence is suspicious". Doing that
-# properly means occlusion: remove each sentence, re-score, and rank by the change
-# in p(scam). That is step 3.4.
-#
-# Until then this ranks sentences by keyword presence. It is a heuristic, NOT model
-# output, so the response marks it `approximate: true` — a user must not believe the
-# model pointed at a sentence when a word list did.
-
-_RISK_KEYWORDS = (
-    "biaya administrasi",
-    "biaya pelatihan",
-    "transfer",
-    "uang jaminan",
-    "telegram",
-    "tanpa pengalaman",
-    "kuota terbatas",
-    "gaji besar",
-    "langsung kerja",
-)
-
-# Split on sentence punctuation followed by space, OR on a line break directly.
-# Job ads are mostly line-broken rather than punctuated, so `\n` must be a
-# separator in its own right — requiring trailing whitespace after it silently
-# merges every unpunctuated line into its neighbour.
-# Note this still splits "Rp9.000.000" safely: those dots have no whitespace after.
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
-
-
-def _split_sentences_with_spans(text: str) -> list[tuple[str, int, int]]:
-    """Naive splitter — replaced by the Indonesian-aware one in step 3.4."""
-    out: list[tuple[str, int, int]] = []
-    cursor = 0
-    for piece in _SENTENCE_SPLIT.split(text):
-        stripped = piece.strip()
-        if not stripped:
-            continue
-        start = text.find(stripped, cursor)
-        if start == -1:
-            continue
-        out.append((stripped, start, start + len(stripped)))
-        cursor = start + len(stripped)
-    return out
-
-
-def _keyword_sentence_evidence(text: str) -> list[SentenceEvidence]:
-    scored: list[SentenceEvidence] = []
-    for sentence, start, end in _split_sentences_with_spans(text):
-        lowered = sentence.lower()
-        hits = sum(1 for kw in _RISK_KEYWORDS if kw in lowered)
-        delta = 0.12 * hits if hits else -0.01
-        scored.append(
-            SentenceEvidence(
-                text=sentence,
-                delta=round(delta, 4),
-                polarity=Polarity.RISK if delta > 0 else Polarity.SAFE,
-                span=Span(start=start, end=end),
-            )
-        )
-    scored.sort(key=lambda s: abs(s.delta), reverse=True)
-    return scored[:TOP_K_SENTENCE_EVIDENCE]
-
-
 def _summary(score: int, label: RiskLabel, rule_hits: list[RuleHit], locale_code: str) -> str:
     """Narrative explanation, in the language of the ad.
 
@@ -246,6 +180,56 @@ async def health() -> HealthResponse:
     )
 
 
+@app.post(
+    f"{API_PREFIX}/report",
+    response_model=ReportResponse,
+    tags=["analysis"],
+    summary="Ajukan banding atau koreksi label",
+)
+async def report(payload: ReportRequest) -> ReportResponse:
+    """Accept an appeal against a score — concept paper §3.6.
+
+    The case this exists for is a legitimate company scored *Tinggi*. §3.6 names
+    false positives against real businesses as the error to suppress, and a system
+    that can be wrong with no way to say so is worse than one that admits it.
+
+    Two properties the response states rather than implies:
+
+    - **The advertisement is stored.** Analysis persists nothing; filing a report is
+      a separate, deliberate act, so the difference is reported back explicitly.
+    - **Nothing here reaches the model.** Reports are quarantined for human review.
+      Retraining on submitted labels would let anyone move any score in either
+      direction, including a scammer clearing their own advertisement — which is
+      exactly the poisoning risk the paper's Tahap 3 warns about.
+    """
+    cleaned = sanitize(payload.text)
+
+    stored = store_report(
+        correction=payload.correction.value,
+        text=cleaned.text,
+        reported_score=payload.reported_score,
+        reported_label=payload.reported_label.value if payload.reported_label else None,
+        request_id=payload.request_id,
+        model_version=scam_model.info.version,
+        comment=payload.comment,
+        contact=payload.contact,
+    )
+
+    log.info(
+        "correction filed: %s (%s) for request_id=%s",
+        stored.report_id, stored.correction, payload.request_id,
+    )
+
+    return ReportResponse(
+        report_id=stored.report_id,
+        received_at=stored.received_at,
+        message=(
+            "Terima kasih. Laporan Anda disimpan untuk ditinjau manusia dan tidak "
+            "digunakan untuk melatih ulang model."
+        ),
+    )
+
+
 def _mount_frontend() -> None:
     """Serve the built React bundle from this process, if it is present.
 
@@ -276,9 +260,25 @@ def _mount_frontend() -> None:
 async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     started = time.perf_counter()
 
+    # Resolve the input. Exactly one of text/url is present — the request model
+    # enforces that, so this cannot silently prefer one over the other.
+    source_url: str | None = None
+    if payload.url:
+        try:
+            page = fetch_job_ad(payload.url)
+        except UrlFetchError as exc:
+            log.info("URL fetch refused (%s): %s", exc.reason, payload.url[:200])
+            # 422, not 502: from the client's perspective the submitted input could
+            # not be used, which is the same class of problem as unusable text.
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raw_text = page.text
+        source_url = page.final_url
+    else:
+        raw_text = payload.text
+
     # Sanitise before anything reads the text (step 4.3). Length-preserving, so
     # span offsets still address what the client will render.
-    cleaned = sanitize(payload.text)
+    cleaned = sanitize(raw_text)
     if not cleaned.is_analysable:
         raise HTTPException(
             status_code=422,
@@ -312,8 +312,12 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
             ),
         )
 
-    probability = scam_model.probability(text)
+    # One forward pass for the score, then one batched pass over the leave-one-out
+    # variants for the explanation (step 3.4).
+    base_margin = scam_model.margins([text])[0]
+    probability = scam_model.calibrate_margin(base_margin)
     breakdown = compute_score(probability, evaluation)
+    sentence_evidence = occlusion_evidence(text, base_margin, scam_model.margins)
     score = breakdown.integrity_score
     label = breakdown.risk_label
 
@@ -323,14 +327,17 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         model_probability=round(breakdown.model_probability, 4),
         fused_probability=round(breakdown.fused_probability, 4),
         summary=_summary(score, label, rule_hits, locale.code),
-        sentence_evidence=_keyword_sentence_evidence(text),
-        sentence_evidence_approximate=True,
+        sentence_evidence=sentence_evidence,
+        sentence_evidence_approximate=False,
         rule_layer_enabled=RULE_LAYER_ENABLED,
+        source_url=source_url,
         analysed_text=text,
         rule_hits=rule_hits,
         extracted_fields=ingested.fields,
         locale=locale.code,
-        locale_detected=detect_language(payload.text),
+        # `text`, not `payload.text` — on the URL path the latter is None, and the
+        # language of a fetched page comes from what was fetched.
+        locale_detected=detect_language(text),
         unassessed_rules=list(evaluation.unavailable_features),
         disclaimer=disclaimer_for(locale.code),
         privacy_note=privacy_note_for(locale.code),

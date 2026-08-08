@@ -3,7 +3,13 @@
  * so there is no CORS preflight in development and no hardcoded host.
  */
 
-import type { AnalyzeRequest, AnalyzeResponse, HealthResponse } from "./types";
+import type {
+  AnalyzeRequest,
+  AnalyzeResponse,
+  HealthResponse,
+  ReportRequest,
+  ReportResponse,
+} from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "";
 
@@ -62,6 +68,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function analyze(payload: AnalyzeRequest): Promise<AnalyzeResponse> {
   return request<AnalyzeResponse>("/api/v1/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function report(payload: ReportRequest): Promise<ReportResponse> {
+  return request<ReportResponse>("/api/v1/report", {
     method: "POST",
     body: JSON.stringify(payload),
   });

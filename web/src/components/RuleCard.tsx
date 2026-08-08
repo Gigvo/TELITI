@@ -22,7 +22,18 @@ function tier(severity: number): string {
   return "rule--low";
 }
 
-export function RuleCard({ hit, locale }: { hit: RuleHit; locale: string }) {
+interface Props {
+  hit: RuleHit;
+  locale: string;
+  /**
+   * When false the rule layer is advisory: findings are real, but they did not move
+   * the score. Rendering "−9.5 pts" beside a score those points never touched would
+   * be the interface lying, so the badge is replaced with a neutral marker.
+   */
+  affectsScore: boolean;
+}
+
+export function RuleCard({ hit, locale, affectsScore }: Props) {
   // Show the label in the language of the ad, matching the rest of the analysis.
   const title = locale === "id" ? hit.label_id : hit.label_en;
 
@@ -30,7 +41,13 @@ export function RuleCard({ hit, locale }: { hit: RuleHit; locale: string }) {
     <article className={`rule ${tier(hit.severity)}`}>
       <div className="rule-head">
         <span className="rule-title">{title}</span>
-        <span className="rule-points">−{hit.contribution.toFixed(1)} pts</span>
+        {affectsScore ? (
+          <span className="rule-points">−{hit.contribution.toFixed(1)} pts</span>
+        ) : (
+          <span className="rule-note" title="Shown as context; did not change the score">
+            note only
+          </span>
+        )}
       </div>
       <p className="rule-evidence">{hit.evidence}</p>
       <div className="rule-meta">

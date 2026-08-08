@@ -21,7 +21,7 @@ export const SCAM_RESPONSE: AnalyzeResponse = {
   sentence_evidence: [
     {
       text: "Interview conducted via Telegram.",
-      delta: 0.12,
+      delta: 1.84,
       polarity: "risk",
       span: { start: telegramStart, end: telegramStart + 33 },
     },
@@ -59,6 +59,9 @@ export const SCAM_RESPONSE: AnalyzeResponse = {
     urls: [],
   },
   analysed_text: SCAM_TEXT,
+  rule_layer_enabled: false,
+  sentence_evidence_approximate: false,
+  source_url: null,
   locale: "en",
   locale_detected: "en",
   unassessed_rules: [],

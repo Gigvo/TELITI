@@ -16,7 +16,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.constants import (
     DISCLAIMER_ID,
@@ -100,17 +100,27 @@ class Span(BaseModel):
 
 
 class SentenceEvidence(BaseModel):
-    """One sentence, scored by leave-one-out occlusion (MVP_PLAN.md section 1.4).
+    """One sentence, scored by leave-one-out occlusion (MVP_PLAN.md §1.4 / step 3.4).
 
-    `delta` is the change in p(scam) when this sentence is REMOVED. A large
-    positive delta means removing it made the ad look safer, i.e. the sentence
-    was carrying risk.
+    `delta` is measured in LOGIT MARGIN, not probability. On a blatant scam the
+    model outputs p ≈ 0.9999; removing any one sentence shifts that by ~0.001 —
+    not because the sentence does not matter, but because the probability is pinned
+    at its ceiling and the other sentences are independently damning. The margin is
+    unbounded, so the differences remain comparable.
+
+    Treat it as a RELATIVE influence score: bigger magnitude means the model's
+    verdict depended on that sentence more. It is not a probability and should not
+    be displayed as a percentage.
     """
 
     model_config = _BASE
 
     text: str
-    delta: float = Field(description="p(scam) with sentence − p(scam) without it.")
+    delta: float = Field(
+        description="Logit margin with the sentence − margin without it. Positive "
+        "means the advertisement looked safer once the sentence was removed, so the "
+        "sentence carried risk. Relative influence, not a probability."
+    )
     polarity: Polarity
     span: Optional[Span] = None
 
@@ -178,13 +188,29 @@ class ExtractedFields(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
+    """Either `text` or `url` — exactly one.
+
+    Concept paper §1.2 promises both: "menempelkan teks lowongan atau tautannya".
+    Pasted text is the primary path, because the channels the paper targets
+    (WhatsApp, Telegram, Instagram) carry messages, not links.
+    """
+
     model_config = _BASE
 
-    text: str = Field(
+    text: str | None = Field(
+        default=None,
         min_length=MIN_TEXT_LENGTH,
         max_length=MAX_TEXT_LENGTH,
         description="Raw job-ad text, exactly as the user copied it.",
     )
+    url: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Link to a job posting. The server fetches and extracts it. "
+        "If the page cannot be parsed into something resembling an advertisement, "
+        "the request is refused rather than scored — see api/fetch_url.py.",
+    )
+
     source_channel: Optional[SourceChannel] = None
     profile: InferenceProfile = InferenceProfile.TEXT_ONLY
     locale: Optional[str] = Field(
@@ -192,6 +218,18 @@ class AnalyzeRequest(BaseModel):
         description="Force a language ('en' or 'id') instead of auto-detecting. "
         "Ignored if that locale has no resources installed.",
     )
+
+    @model_validator(mode="after")
+    def exactly_one_input(self) -> "AnalyzeRequest":
+        """Reject both-or-neither rather than silently preferring one.
+
+        Accepting both and quietly ignoring the URL would mean a user who pasted a
+        link AND some text gets a score for the text while believing the link was
+        checked.
+        """
+        if bool(self.text) == bool(self.url):
+            raise ValueError("Provide either 'text' or 'url', not both and not neither.")
+        return self
 
 
 class AnalyzeResponse(BaseModel):
@@ -246,9 +284,79 @@ class AnalyzeResponse(BaseModel):
     disclaimer: str = DISCLAIMER_ID
     privacy_note: str = PRIVACY_NOTE_ID
 
+    source_url: str | None = Field(
+        default=None,
+        description="Set when the advertisement was fetched from a link rather than "
+        "pasted. This is the URL actually fetched after redirects, which may differ "
+        "from the one submitted.",
+    )
+
     request_id: str
     model_version: str
     latency_ms: int = Field(ge=0)
+
+
+class CorrectionType(str, Enum):
+    """What the reporter says went wrong.
+
+    The first two are the cases that matter. `false_positive` is the one §3.6 calls
+    the expensive error — a real company told it looks like a scam.
+    """
+
+    FALSE_POSITIVE = "false_positive"   # legitimate ad scored as risky
+    FALSE_NEGATIVE = "false_negative"   # scam ad scored as safe
+    WRONG_EVIDENCE = "wrong_evidence"   # verdict defensible, reasoning wrong
+    OTHER = "other"
+
+
+class ReportRequest(BaseModel):
+    """Appeal or label correction — concept paper §3.6.
+
+    ⚠️ Submitting this STORES the advertisement text. Analysis stores nothing; this
+    is a separate, deliberate act, and the UI must say so before the user sends it.
+    """
+
+    model_config = _BASE
+
+    correction: CorrectionType
+    text: str = Field(
+        min_length=MIN_TEXT_LENGTH,
+        max_length=MAX_TEXT_LENGTH,
+        description="The advertisement in question. Required — a report about text "
+        "nobody can see cannot be reviewed.",
+    )
+    reported_score: Optional[int] = Field(default=None, ge=0, le=100)
+    reported_label: Optional[RiskLabel] = None
+    request_id: Optional[str] = Field(
+        default=None, description="From the disputed analysis, to tie the two together."
+    )
+    comment: str = Field(default="", max_length=2000)
+    contact: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Optional. Only for following up on this report.",
+    )
+
+
+class ReportResponse(BaseModel):
+    model_config = _BASE
+
+    report_id: str
+    received_at: str
+    message: str
+    stored_text: bool = Field(
+        default=True,
+        description="True: the advertisement was stored so the report can be "
+        "reviewed. Stated explicitly because analysis stores nothing, and the "
+        "difference should be visible rather than assumed.",
+    )
+    used_for_training: bool = Field(
+        default=False,
+        description="Always false. Reports are quarantined for human review and "
+        "never fed back into the model — an endpoint that retrained on submitted "
+        "labels would let anyone move any score (concept paper, Tahap 3, on data "
+        "poisoning).",
+    )
 
 
 class HealthResponse(BaseModel):
