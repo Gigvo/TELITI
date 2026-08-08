@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TELITI — Progress, Training Results & Next Steps</title>
+<style>
+  @page {
+    size: A4;
+    margin: 19mm 17mm 21mm 17mm;
+    @bottom-center {
+      content: "TELITI — Progress & Training Results — " counter(page) " / " counter(pages);
+      font-size: 8.5pt; color: #6b7280;
+      font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 10.3pt; line-height: 1.52; color: #1a1d23; margin: 0;
+  }
+
+  .cover { page-break-after: always; display: flex; flex-direction: column;
+           justify-content: center; min-height: 240mm; }
+  .cover .kicker { font-size: 11pt; font-weight: 700; letter-spacing: 2px;
+                   color: #4f8cff; text-transform: uppercase; margin-bottom: 14px; }
+  .cover h1 { font-size: 30pt; margin: 0 0 10px; letter-spacing: -0.5px; }
+  .cover .subtitle { font-size: 12.5pt; color: #4b5563; margin-bottom: 28px; max-width: 510px; }
+  .cover .meta { border-top: 1px solid #e5e7eb; padding-top: 16px;
+                 font-size: 9.8pt; color: #6b7280; }
+  .cover .meta div { margin-bottom: 4px; }
+  .cover .meta strong { color: #1a1d23; }
+  .badge-row { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 5px 11px; border-radius: 999px;
+           font-size: 8.6pt; font-weight: 600; border: 1px solid; }
+  .badge-green { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+  .badge-amber { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+  .badge-red   { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+  .badge-blue  { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+
+  .toc { margin-top: 26px; }
+  .toc div { display: flex; justify-content: space-between; padding: 5px 0;
+             border-bottom: 1px dotted #d1d5db; font-size: 9.8pt; }
+  .toc .toc-num { color: #4f8cff; font-weight: 700; width: 26px; display: inline-block; }
+
+  h1 { font-size: 18.5pt; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 13pt; margin: 22px 0 9px; padding-bottom: 5px;
+       border-bottom: 2px solid #1a1d23; }
+  h3 { font-size: 11.2pt; margin: 15px 0 6px; }
+  h4 { font-size: 10.3pt; margin: 12px 0 5px; color: #374151; }
+  .part-break { page-break-before: always; }
+  section { page-break-inside: avoid; }
+  p { margin: 0 0 8px; }
+  strong { font-weight: 650; }
+
+  .lede { font-size: 11.3pt; background: #f8fafc; border-left: 3px solid #4f8cff;
+          padding: 11px 15px; margin: 4px 0 14px; border-radius: 0 6px 6px 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 9px 0 13px; font-size: 9.3pt; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #e5e7eb;
+           vertical-align: top; }
+  th { background: #f8fafc; font-weight: 650; border-bottom: 2px solid #d1d5db;
+       font-size: 8.6pt; text-transform: uppercase; letter-spacing: 0.3px; color: #4b5563; }
+  tr:last-child td { border-bottom: 1px solid #d1d5db; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.highlight td { background: #f0fdf4; }
+  tr.alarm td { background: #fef2f2; }
+  tr.warnrow td { background: #fffbeb; }
+  tr.dim td { color: #6b7280; }
+
+  code, .mono { font-family: ui-monospace, "SF Mono", Consolas, monospace;
+                font-size: 8.8pt; background: #f1f5f9; padding: 1px 4px;
+                border-radius: 4px; color: #334155; }
+  pre { background: #0f1115; color: #e6e9ef; padding: 11px 13px; border-radius: 8px;
+        font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 8.4pt;
+        line-height: 1.5; overflow-x: auto; margin: 8px 0 11px; }
+  pre .cmt { color: #7d8590; }
+  pre.data { background: #f8fafc; color: #334155; border: 1px solid #e5e7eb; }
+
+  .callout { border-radius: 6px; padding: 9px 13px; margin: 9px 0 13px;
+             font-size: 9.6pt; border: 1px solid; }
+  .callout-warn { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+  .callout-good { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+  .callout-info { background: #eff6ff; border-color: #bfdbfe; color: #1e3a5f; }
+  .callout-alarm { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+
+  ul, ol { margin: 4px 0 11px; padding-left: 19px; }
+  li { margin-bottom: 4px; }
+
+  .step-card { border: 1px solid #e5e7eb; border-left: 4px solid #4f8cff;
+               border-radius: 6px; padding: 11px 14px; margin: 11px 0; }
+  .step-card.p1 { border-left-color: #dc2626; }
+  .step-card.p2 { border-left-color: #f59e0b; }
+  .step-card.p3 { border-left-color: #9ca3af; }
+  .step-card h3 { margin-top: 0; }
+  .step-tag { display: inline-block; font-size: 7.8pt; font-weight: 700;
+              letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px;
+              border-radius: 4px; margin-bottom: 6px; }
+  .tag-1 { background: #fee2e2; color: #991b1b; }
+  .tag-2 { background: #fef3c7; color: #92400e; }
+  .tag-3 { background: #f3f4f6; color: #4b5563; }
+
+  /* checklist */
+  .ck { margin: 4px 0 14px; }
+  .ck-row { display: grid; grid-template-columns: 20px 62px 1fr 118px;
+            gap: 9px; padding: 4px 0; border-bottom: 1px solid #f1f5f9;
+            font-size: 9.4pt; align-items: baseline; }
+  .ck-row .mk { font-weight: 800; text-align: center; }
+  .ck-row .st { font-family: ui-monospace, Consolas, monospace; font-size: 8.6pt;
+                color: #6b7280; }
+  .ck-row .note { font-size: 8.6pt; color: #6b7280; text-align: right; }
+  .mk-done { color: #16a34a; }
+  .mk-part { color: #f59e0b; }
+  .mk-open { color: #d1d5db; }
+  .ck-head { font-size: 8.6pt; font-weight: 700; text-transform: uppercase;
+             letter-spacing: 0.5px; color: #4b5563; margin: 14px 0 4px;
+             padding-bottom: 3px; border-bottom: 1px solid #d1d5db; }
+
+  .footnote { font-size: 8.4pt; color: #9ca3af; }
+  .correction { border: 1px dashed #d1d5db; border-radius: 6px; padding: 8px 12px;
+                font-size: 8.9pt; color: #6b7280; margin: 11px 0; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="kicker">Progress Brief · Revision 3</div>
+  <h1>Where The Project Stands<br>&amp; What To Do Next</h1>
+  <div class="subtitle">
+    A full done/not-done checklist, what three training runs have shown, a problem in
+    the Indonesian evaluation dataset that must be fixed before it can be used, and
+    the next experiments worth running.
+  </div>
+
+  <div class="badge-row">
+    <span class="badge badge-green">336 tests passing</span>
+    <span class="badge badge-green">Calibration: PASS</span>
+    <span class="badge badge-amber">Training gate: not met yet</span>
+    <span class="badge badge-red">Dataset: needs a fix</span>
+  </div>
+
+  <div class="meta" style="margin-top: 36px;">
+    <div><strong>Project:</strong> TELITI — job-ad integrity scoring</div>
+    <div><strong>Repo:</strong> github.com/Gigvo/TELITI</div>
+    <div><strong>Latest run:</strong> mDistilBERT, 512 tokens, 3 epochs, RTX 5050, 26 min</div>
+    <div><strong>Related:</strong> docs/GPU_HANDOFF.md, docs/INDONESIAN_DATASET_SPEC.md, STATUS.md</div>
+  </div>
+
+  <div class="toc">
+    <div><span><span class="toc-num">1</span>Checklist — what is done, what is not</span><span>Page 2</span></div>
+    <div><span><span class="toc-num">2</span>What the training runs show</span><span>Page 4</span></div>
+    <div><span><span class="toc-num">3</span>The Indonesian dataset — fix this first</span><span>Page 6</span></div>
+    <div><span><span class="toc-num">4</span>What to do next</span><span>Page 8</span></div>
+    <div><span><span class="toc-num">5</span>Quick reference</span><span>Page 10</span></div>
+  </div>
+</div>
+
+<!-- ===================== PART 1: CHECKLIST ===================== -->
+<h1>1 — Checklist</h1>
+
+<div class="lede">
+  <strong>Roughly 65% complete.</strong> Everything around the model — API, rule
+  engine, scoring, frontend, deployment, evaluation harness — is built and tested.
+  What remains is the model itself clearing its bar, and the evaluation dataset
+  being usable.
+</div>
+
+<div class="ck">
+
+<div class="ck-head">Setup &amp; data</div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">0.1</span>
+  <span>Python environment, dependencies installed</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">0.2</span>
+  <span>GPU verified on RTX 5050 (cu128 wheels, real matmul)</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">0.3</span>
+  <span>EMSCAD dataset downloaded and validated</span><span class="note">17,880 rows</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">0.4</span>
+  <span>Repository structure, git, GitHub remote</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.2</span>
+  <span>Data preparation — 4-way stratified split</span><span class="note">12.5k / 1.8k ×3</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.2b</span>
+  <span>Derivability measured (EMSCAD cannot teach rule weights)</span><span class="note">done</span></div>
+
+<div class="ck-head">Core system</div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.1</span>
+  <span>API contract frozen (<code>api/schemas.py</code>)</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.3</span>
+  <span>TF-IDF baselines trained</span><span class="note">PR-AUC 0.8769</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.4</span>
+  <span>Rule engine + email / contact rules (5 features)</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">2.4</span>
+  <span>Remaining rules — salary, qualification, risk phrases (4 features)</span><span class="note">all 9 filled</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">—</span>
+  <span>Locale layer (English + Indonesian, drop-in)</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">3.1a</span>
+  <span>Scoring layer — bounded rule weights, fusion</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">1.6</span>
+  <span>React frontend — score gauge, evidence highlighting</span><span class="note">19 tests</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">4.3</span>
+  <span>Demo hardening — sanitisation, latency 794→86 ms</span><span class="note">done</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">—</span>
+  <span>Docker deployment config</span><span class="note">not build-tested</span></div>
+
+<div class="ck-head">Model</div>
+<div class="ck-row"><span class="mk mk-part">◐</span><span class="st">2.1</span>
+  <span>Fine-tune transformer — 3 runs, none past the gate yet</span><span class="note">best 0.8763</span></div>
+<div class="ck-row"><span class="mk mk-done">✔</span><span class="st">2.3</span>
+  <span>Probability calibration (Platt scaling)</span><span class="note">ECE 0.0038</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">2.5</span>
+  <span>Wire the real model into the API</span><span class="note">needs 2.1</span></div>
+
+<div class="ck-head">Evaluation</div>
+<div class="ck-row"><span class="mk mk-part">◐</span><span class="st">1.5</span>
+  <span>Indonesian holdout — 200 items collected, ~85 need full text</span><span class="note">see §3</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">2.2</span>
+  <span>Cross-language probe — the headline number</span><span class="note">needs 1.5</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">3.1b</span>
+  <span>Validate rule weights on the holdout</span><span class="note">needs 1.5</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">3.2</span>
+  <span>Risk thresholds from a precision target</span><span class="note">needs 2.1</span></div>
+
+<div class="ck-head">Serving &amp; delivery</div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">3.3</span>
+  <span>ONNX export + INT8 quantisation</span><span class="note">needs 2.1</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">3.4</span>
+  <span>Sentence-level explainability (occlusion)</span><span class="note">needs 2.1</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">4.1</span>
+  <span>Full pipeline wired end to end</span><span class="note">needs 2.5</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">4.2</span>
+  <span>Final evaluation report (test split, touched once)</span><span class="note">needs 2.1 + 1.5</span></div>
+<div class="ck-row"><span class="mk mk-open">☐</span><span class="st">4.4</span>
+  <span>Tag <code>v0.1-mvp</code> — freeze point</span><span class="note">last step</span></div>
+
+<div class="ck-head">Write-up</div>
+<div class="ck-row"><span class="mk mk-part">◐</span><span class="st">—</span>
+  <span>Paper revisions drafted (5 changes, Indonesian text ready)</span><span class="note">not applied</span></div>
+
+</div>
+
+<p class="footnote">✔ done &nbsp;·&nbsp; ◐ partial / in progress &nbsp;·&nbsp; ☐ not started</p>
+
+<h2>The two things actually blocking progress</h2>
+
+<table>
+<thead><tr><th>Blocker</th><th>Blocks</th><th>Who</th></tr></thead>
+<tbody>
+<tr class="alarm"><td><strong>Dataset:</strong> ~85 holdout entries contain index rows, not full ad text</td>
+    <td>2.2, 3.1b, 4.2 — every headline number</td><td>Data work, no GPU</td></tr>
+<tr class="warnrow"><td><strong>Model:</strong> transformer has not beaten the TF-IDF baseline</td>
+    <td>2.5, 3.2, 3.3, 3.4, 4.1</td><td>GPU experiments</td></tr>
+</tbody>
+</table>
+
+<p>These are independent — different people can work them in parallel.</p>
+
+<!-- ===================== PART 2: TRAINING ===================== -->
+<div class="part-break"></div>
+<h1>2 — What the training runs show</h1>
+
+<h2>All results so far</h2>
+
+<table>
+<thead><tr><th>Run</th><th class="num">max_len</th><th class="num">Epochs</th>
+  <th class="num">PR-AUC</th><th class="num">vs baseline</th><th>Time</th></tr></thead>
+<tbody>
+<tr class="dim"><td>TF-IDF + LinearSVC (CPU, no GPU needed)</td><td class="num">—</td><td class="num">—</td>
+    <td class="num"><strong>0.8769</strong></td><td class="num">—</td><td>9 sec</td></tr>
+<tr><td>mDistilBERT, run 2 (GPU)</td><td class="num">256</td><td class="num">3</td>
+    <td class="num">0.8763</td><td class="num">−0.0006</td><td>14 min</td></tr>
+<tr class="warnrow"><td>mDistilBERT, run 3 (GPU) — latest</td><td class="num">512</td><td class="num">3</td>
+    <td class="num">0.8595</td><td class="num">−0.0174</td><td>26 min</td></tr>
+</tbody>
+</table>
+
+<p class="footnote">A first CPU run was abandoned partway through when the GPU machine
+became available; it is not comparable and is excluded.</p>
+
+<h2>The diagnosis: undertrained, not overfitting</h2>
+
+<p>The evaluation history from the latest run tells the story clearly:</p>
+
+<table>
+<thead><tr><th class="num">Step</th><th class="num">PR-AUC</th><th class="num">Change</th>
+  <th class="num">Precision</th><th class="num">Recall</th><th class="num">False positives</th></tr></thead>
+<tbody>
+<tr><td class="num">400</td><td class="num">0.5724</td><td class="num">—</td>
+    <td class="num">0.505</td><td class="num">0.628</td><td class="num">53</td></tr>
+<tr><td class="num">800</td><td class="num">0.7401</td><td class="num">+0.168</td>
+    <td class="num">0.815</td><td class="num">0.616</td><td class="num">12</td></tr>
+<tr><td class="num">1200</td><td class="num">0.7967</td><td class="num">+0.057</td>
+    <td class="num">0.894</td><td class="num">0.686</td><td class="num">7</td></tr>
+<tr><td class="num">1600</td><td class="num">0.8395</td><td class="num">+0.043</td>
+    <td class="num">0.938</td><td class="num">0.709</td><td class="num">4</td></tr>
+<tr class="highlight"><td class="num">2000</td><td class="num">0.8562</td><td class="num">+0.017</td>
+    <td class="num"><strong>0.967</strong></td><td class="num">0.686</td><td class="num"><strong>2</strong></td></tr>
+<tr><td class="num">2349</td><td class="num">0.8595</td><td class="num">+0.003</td>
+    <td class="num">0.899</td><td class="num">0.721</td><td class="num">7</td></tr>
+</tbody>
+</table>
+
+<div class="callout callout-info">
+<strong>PR-AUC climbed monotonically to the final step — it never peaked and
+declined.</strong> That is the signature of a model that ran out of training budget,
+not one that overfit. An overfitting model shows PR-AUC rising then falling while
+training loss keeps dropping. This one was still improving when training stopped.
+</div>
+
+<h2>Why 512 tokens scored <em>worse</em> than 256</h2>
+
+<p>Counterintuitive, but it is a scheduling artefact rather than a finding about
+context length.</p>
+
+<p><strong>Both runs used the same 2,349 optimizer steps.</strong> Step count is
+<code>dataset_size ÷ batch_size × epochs</code> — it does not change when you
+lengthen the sequence. So the 512-token run had exactly as many gradient updates to
+learn a <em>harder</em> problem: twice the tokens per example, more positions to
+attend over. It simply did not get there.</p>
+
+<p>There is a second effect that makes this worth rerunning rather than
+extrapolating from the curve. The learning rate follows a <strong>linear decay to
+zero</strong> across the planned steps. By step 2349 the learning rate was
+essentially nil, so the final checkpoints were barely learning at all. Running more
+epochs does not merely append more of that flat tail — it <em>stretches the entire
+schedule</em>, giving the model far more time at a productive learning rate.</p>
+
+<h2>One point in the transformer's favour</h2>
+
+<p>At <strong>step 2000: precision 0.967 with only 2 false positives</strong> out of
+1,702 legitimate ads. The TF-IDF baseline's best is 0.930 precision with 5.</p>
+
+<div class="callout callout-good">
+PR-AUC averages performance across <em>all</em> thresholds, but this product does not
+operate at all thresholds. Concept paper §3.6 states that false positives against
+real companies are the expensive error, and step 3.2 selects the operating point from
+a precision target. <strong>The transformer appears able to reach a higher precision
+ceiling than TF-IDF</strong> — which may matter more for the product than the PR-AUC
+summary suggests.
+</div>
+
+<p>This is one checkpoint and the comparison needs a consistent threshold rule, so it
+is not yet a conclusion. But it is a reason to measure properly at step 3.2 rather
+than discarding the transformer on PR-AUC alone.</p>
+
+<h2>Calibration — still a clean pass</h2>
+
+<table>
+<thead><tr><th>Metric</th><th class="num">Before</th><th class="num">After</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr class="highlight"><td><strong>ECE</strong></td><td class="num">0.0113</td><td class="num"><strong>0.0038</strong></td>
+    <td>Gate was ≤ 0.05 — roughly 13× under it</td></tr>
+<tr><td>Brier</td><td class="num">0.0148</td><td class="num">0.0138</td><td>Improved</td></tr>
+<tr class="dim"><td>PR-AUC</td><td class="num">0.8839</td><td class="num">0.8839</td>
+    <td>Unchanged — correct, Platt scaling is monotone and cannot reorder</td></tr>
+</tbody>
+</table>
+
+<p>The Integrity Score now means something concrete: when the system outputs 0.80,
+it is right roughly 80% of the time.</p>
+
+<!-- ===================== PART 3: DATASET ===================== -->
+<div class="part-break"></div>
+<h1>3 — The Indonesian dataset: fix this first</h1>
+
+<div class="correction">
+<strong>Correction to revision 1 of this brief.</strong> An earlier version stated the
+Indonesian evaluation dataset "does not exist." That was wrong — written after
+checking only one of the two machines. It does exist, at
+<code>eval/indonesian_holdout.jsonl</code>, with 200 items and a clean validator run.
+</div>
+
+<h2>What's there</h2>
+
+<pre class="data">items         : 200 / 200 target
+labels        : 72 scam, 128 legitimate (36.0% scam)
+channels      : {'job_board': 123, 'whatsapp': 44, 'other': 33}
+source types  : {'job_board': 110, 'community_report': 72,
+                 'company_official': 10, 'glints': 5, 'media': 3}
+looks good.</pre>
+
+<p>Target size met, and the 36% scam rate is almost exactly the 35% the spec asked
+for — deliberately legitimate-leaning so false positives, the expensive error, are
+what gets surfaced.</p>
+
+<h2>The problem: 43% of items are not job ads</h2>
+
+<p><strong>86 of the 200 items are under 200 characters, and 85 of those are labelled
+legitimate.</strong> They look like this:</p>
+
+<pre class="data">Driver • Cititrans • Kompetitif • SMA/SMK • 1–2 thn • Luar Jabodetabek
+Staff Gudang • Roschel • Kompetitif • SMA/SMK • 0–2 thn • Jakarta Barat
+Kasir • Andifa Vet Clinic • Kompetitif • SMA/SMK • 0–2 thn • Jakarta Selatan
+Helper Mekanik • PT. Anugrah Vindo Abadi • Kompetitif • SMK • 1–2 thn • Bekasi</pre>
+
+<p>Those are <strong>job-board index rows</strong> — the one-line summary from a
+search results page, not the advertisement itself. Every scam item, by contrast, is a
+full forwarded WhatsApp message with a median length of <strong>767
+characters</strong>.</p>
+
+<table>
+<thead><tr><th>Class</th><th class="num">Median length</th><th class="num">Min</th><th class="num">Max</th></tr></thead>
+<tbody>
+<tr class="alarm"><td>Legitimate</td><td class="num">125 chars</td><td class="num">70</td><td class="num">1,289</td></tr>
+<tr><td>Scam</td><td class="num">767 chars</td><td class="num">185</td><td class="num">2,478</td></tr>
+</tbody>
+</table>
+
+<h3>Why this invalidates the evaluation</h3>
+
+<pre class="data">Text length ALONE as a scam detector on this holdout:
+  PR-AUC   0.8847
+  ROC-AUC  0.9355
+
+Best single threshold rule: "text >= 500 chars => scam"
+  F1 0.8082   precision 0.7973   recall 0.8194   (TP 59, FP 15, FN 13)</pre>
+
+<div class="callout callout-alarm">
+<strong>Counting characters scores PR-AUC 0.8847 on this dataset — higher than either
+trained transformer managed on EMSCAD.</strong> Any model evaluated here will post an
+impressive number that is substantially just measuring "is this text long?", and the
+score alone gives no way to tell the difference.
+</div>
+
+<p>It also does not match the product's real input. A user pastes a job ad they
+received. Nobody will paste a 70-character index row into TELITI, so those items
+measure performance on input that never occurs in practice.</p>
+
+<h2>The good news — close, not broken</h2>
+
+<p><strong>114 of the 200 items are already exactly right.</strong> The Glints entries
+and the longer <code>job_board</code> ones are proper full postings:</p>
+
+<pre class="data">[id-holdout-0088] Pharos Indonesia • Medical Representative
+Mempromosikan produk farmasi ke dokter, apotek, rumah sakit. Kerja
+lapangan, target-oriented.
+- Pria/Wanita, pendidikan minimal D3/S1
+- Komunikatif dan berorientasi pada target
+- Siap bekerja di lapangan ...</pre>
+
+<p>The fix: open each short entry's <code>source_url</code>, click through to the
+actual posting, and copy the <strong>full advertisement body</strong> instead of the
+summary line. Same items, same labels, same sources — only <code>text</code> changes.
+Roughly 85 entries.</p>
+
+<h2>Two smaller issues</h2>
+
+<h4>Source perfectly predicts label</h4>
+
+<table>
+<thead><tr><th>source_type</th><th class="num">Legitimate</th><th class="num">Scam</th></tr></thead>
+<tbody>
+<tr><td><code>community_report</code></td><td class="num">0</td><td class="num">72</td></tr>
+<tr><td><code>job_board</code></td><td class="num">110</td><td class="num">0</td></tr>
+<tr><td><code>company_official</code></td><td class="num">10</td><td class="num">0</td></tr>
+<tr><td><code>glints</code></td><td class="num">5</td><td class="num">0</td></tr>
+<tr><td><code>media</code></td><td class="num">3</td><td class="num">0</td></tr>
+</tbody>
+</table>
+
+<p>Zero overlap. <code>source_type</code> is not fed to the model, so this is not
+leakage in the strict sense — but the two classes differ systematically in origin, and
+the length gap is one symptom of that. Worth remembering when interpreting whatever
+score comes out.</p>
+
+<h4>Zero Telegram items</h4>
+
+<p>The <code>contact_messaging_only</code> rule deliberately weights Telegram at
+<strong>0.75</strong> versus WhatsApp at <strong>0.35</strong>, because in Indonesia
+WhatsApp is ordinary business communication while Telegram is not. That asymmetry is
+one of the more considered Indonesian-context decisions in the rule layer, and nothing
+in the holdout currently tests it. A handful of Telegram-channel scam items would
+fix that.</p>
+
+<!-- ===================== PART 4: NEXT ===================== -->
+<div class="part-break"></div>
+<h1>4 — What to do next</h1>
+
+<div class="step-card p1">
+  <span class="step-tag tag-1">Do first — GPU, ~28 min</span>
+  <h3>Experiment 3: more epochs at 256 tokens</h3>
+  <p>The cheapest test of the undertraining diagnosis, starting from the better
+  position — 256 tokens already reached 0.8763 after 3 epochs.</p>
+<pre>python ml/train_transformer.py --no-freeze --epochs 6 --max-length 256</pre>
+  <p>Doubling the budget also stretches the learning-rate schedule, so the model
+  spends far more time at a productive rate rather than decaying to zero early.</p>
+  <p><strong>Compare against 0.8769.</strong></p>
+</div>
+
+<div class="step-card p1">
+  <span class="step-tag tag-1">Do first — data work, no GPU</span>
+  <h3>Fix the ~85 short dataset entries</h3>
+  <p>Replace index-row text with the full advertisement body from each entry's
+  <code>source_url</code>. Labels, ids and sources stay the same.</p>
+  <p>To list exactly which entries need it:</p>
+<pre>python -c "
+import json
+rows=[json.loads(l) for l in open('eval/indonesian_holdout.jsonl',encoding='utf-8') if l.strip()]
+for r in rows:
+    if len(r['text']) &lt; 200:
+        print(r['id'], len(r['text']), r['source_url'])
+"</pre>
+  <p>Re-validate when done: <code>python ml/validate_eval_set.py</code></p>
+  <p>Independent of the GPU work — both can run in parallel.</p>
+</div>
+
+<div class="step-card p2">
+  <span class="step-tag tag-2">Then — GPU, ~52 min, only if Experiment 3 falls short</span>
+  <h3>Experiment 4: more epochs at 512 tokens</h3>
+<pre>python ml/train_transformer.py --no-freeze --epochs 6 --max-length 512</pre>
+  <p>Gives the longer-context model the budget it clearly needed. Add
+  <code>--batch-size 8</code> if CUDA runs out of memory.</p>
+</div>
+
+<div class="callout callout-warn">
+<strong>Set a stopping rule now, before running these.</strong> If neither experiment
+clears 0.8769, stop. "A fine-tuned multilingual transformer matches but does not beat
+a TF-IDF baseline on EMSCAD" is a legitimate, reportable result. Continuing to tune
+past that point is how a project ends up overfitting to its own validation split by
+hand — and the number stops meaning anything.
+</div>
+
+<div class="step-card p3">
+  <span class="step-tag tag-3">After the dataset is fixed</span>
+  <h3>Run the cross-language evaluation (step 2.2)</h3>
+  <p>This is the number the whole project is actually about: does a model trained on
+  2017 English job-board data work on 2026 Indonesian chat-app scams?</p>
+  <div class="callout callout-warn" style="margin: 8px 0;">
+    <strong>Compare against 0.8847, not against zero.</strong> That is what text
+    length alone achieves on this holdout. If the model does not clearly exceed it,
+    it has learned nothing beyond document length — and that must be reported, not
+    smoothed over.
+  </div>
+</div>
+
+<div class="step-card p3">
+  <span class="step-tag tag-3">Whenever a run finishes</span>
+  <h3>Send back the artifacts</h3>
+  <table style="margin-top: 8px;">
+  <thead><tr><th>Path</th><th>Why</th></tr></thead>
+  <tbody>
+  <tr><td><code>artifacts/scam_model/training_summary.json</code></td>
+      <td>Eval history at every checkpoint — the file that made this diagnosis possible</td></tr>
+  <tr><td><code>artifacts/scam_model/</code></td><td>Trained weights</td></tr>
+  <tr><td><code>artifacts/calibrator.json</code></td><td>Platt parameters</td></tr>
+  <tr><td><code>eval/calibration_report.md</code></td><td>Reliability tables</td></tr>
+  </tbody>
+  </table>
+  <p class="footnote">Simplest: zip the whole <code>artifacts/</code> directory. These
+  are gitignored (too large to push), so they move by Drive / Discord / USB.</p>
+</div>
+
+<!-- ===================== PART 5: REFERENCE ===================== -->
+<div class="part-break"></div>
+<h1>5 — Quick reference</h1>
+
+<h2>Commands</h2>
+
+<table>
+<thead><tr><th>Purpose</th><th>Command</th></tr></thead>
+<tbody>
+<tr><td>Experiment 3 (recommended next)</td><td><code>python ml/train_transformer.py --no-freeze --epochs 6 --max-length 256</code></td></tr>
+<tr><td>Experiment 4 (fallback)</td><td><code>python ml/train_transformer.py --no-freeze --epochs 6 --max-length 512</code></td></tr>
+<tr><td>Resume after interruption</td><td><code>python ml/train_transformer.py --resume</code></td></tr>
+<tr><td>Check progress mid-run</td><td><code>python ml/training_status.py --pid &lt;PID&gt;</code></td></tr>
+<tr><td>Calibrate after training</td><td><code>python ml/calibrate.py</code></td></tr>
+<tr><td>Validate the dataset</td><td><code>python ml/validate_eval_set.py</code></td></tr>
+<tr><td>Run the test suite</td><td><code>python -m pytest -q</code></td></tr>
+</tbody>
+</table>
+
+<h2>Gate status</h2>
+
+<table>
+<thead><tr><th>Gate</th><th>Target</th><th>Status</th><th>Interpretation</th></tr></thead>
+<tbody>
+<tr class="warnrow"><td>2.1 — training</td><td>val PR-AUC ≥ 0.88</td><td>NOT MET (best 0.8763)</td>
+    <td>Undertrained, still climbing. Two experiments left, then accept the finding.</td></tr>
+<tr class="highlight"><td>2.3 — calibration</td><td>ECE ≤ 0.05 and improved</td><td>PASS (0.0038)</td>
+    <td>Clean success. The Integrity Score is meaningful.</td></tr>
+<tr class="alarm"><td>1.5 — dataset</td><td>~200 realistic items</td><td>PARTIAL</td>
+    <td>200 collected and balanced; ~85 need full ad text instead of index rows.</td></tr>
+<tr class="highlight"><td>1.3 — baseline</td><td>PR-AUC ≥ 0.80</td><td>PASS (0.8769)</td>
+    <td>Strong. Remains a viable no-GPU fallback if the transformer never wins.</td></tr>
+</tbody>
+</table>
+
+<h2>Troubleshooting</h2>
+
+<table>
+<thead><tr><th>Symptom</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>CUDA out of memory at <code>--max-length 512</code></td><td>Add <code>--batch-size 8</code></td></tr>
+<tr><td><code>no kernel image is available</code></td><td>Wrong PyTorch wheel — reinstall from the <code>cu128</code> index</td></tr>
+<tr><td>Training loss becomes <code>nan</code></td><td>Lower <code>--lr</code> (try <code>1e-5</code>)</td></tr>
+<tr><td>Run interrupted</td><td><code>--resume</code> picks up from the last checkpoint</td></tr>
+</tbody>
+</table>
+
+<h2>What this changes in the concept paper</h2>
+
+<p>§3.3 presents the transformer as the core AI contribution. There is now measured
+evidence from three runs that, on EMSCAD, it <strong>matches but does not beat</strong>
+a classical TF-IDF baseline. That needs stating plainly.</p>
+
+<p>This is not a weakness in the write-up — it is a stronger methods section than an
+unsupported claim. And if the transformer does outperform on a properly constructed
+Indonesian holdout — plausible, since TF-IDF learned untransferable English tokens
+like <code>subsea</code> and <code>below link</code> — the contrast becomes the most
+interesting result in the paper rather than an awkward footnote.</p>
+
+<p class="footnote" style="margin-top: 14px;">
+Exact wording is drafted in <code>docs/PAPER_REVISIONS.md</code> and will be finalised
+once the experiments settle on a number.
+</p>
+
+</body>
+</html>

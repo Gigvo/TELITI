@@ -95,11 +95,27 @@ def test_english_scam_triggers_the_high_weight_rules():
         assert expected in fired, f"{expected} should fire on an English scam"
 
 
-def test_english_scam_scores_as_high_risk():
-    evaluation = default_engine(EN).evaluate(ingest(ENGLISH_SCAM))
-    breakdown = compute_score(0.5, evaluation)
+def test_english_scam_would_score_high_risk_if_rules_were_enabled(monkeypatch):
+    """The English lexicon carries enough weight to move a score.
+
+    The rule layer ships DISABLED (measured: it cost 0.064 PR-AUC and five times the
+    false positives on the Indonesian holdout), so this asserts the mechanism rather
+    than the shipped behaviour — the English resources should not silently rot while
+    the flag is off.
+    """
+    import api.scoring as scoring
+
+    monkeypatch.setattr(scoring, "RULE_LAYER_ENABLED", True)
+    breakdown = scoring.compute_score(0.5, default_engine(EN).evaluate(ingest(ENGLISH_SCAM)))
     assert breakdown.integrity_score < 40
     assert breakdown.risk_label.value == "Tinggi"
+
+
+def test_english_scam_score_is_model_only_as_shipped():
+    """With the rule layer advisory, the score is the model probability untouched."""
+    breakdown = compute_score(0.5, default_engine(EN).evaluate(ingest(ENGLISH_SCAM)))
+    assert breakdown.rule_layer_enabled is False
+    assert breakdown.integrity_score == 50
 
 
 def test_english_legitimate_ad_stays_clean():

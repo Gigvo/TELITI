@@ -24,13 +24,43 @@ decision — the guarantee in section 3.3.
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 from api.constants import PLACEHOLDER_THRESHOLDS, RISK_RENDAH, RISK_SEDANG, RISK_TINGGI
 from api.rules.engine import RuleEvaluation
 from api.schemas import RiskLabel
 from ml.feature_contract import MAX_TOTAL_RULE_SHIFT, RULE_FEATURE_ORDER
 from ml.rule_weights import RULE_WEIGHTS, WEIGHTS_VERSION
+
+#: Whether the rule layer may move the Integrity Score.
+#:
+#: DISABLED 2026-08-08 on measured evidence. Evaluated on the 195-item Indonesian
+#: holdout (`eval/indonesian_results.md`):
+#:
+#:     model only      PR-AUC 0.9258    5 false positives
+#:     model + rules   PR-AUC 0.8617   28 false positives
+#:     rules only      PR-AUC 0.4167   (prevalence floor 0.3641)
+#:
+#: The rule layer made the product measurably worse: it cost 0.064 PR-AUC and more
+#: than five times the false positives. The dominant cause is `email_absent`, which
+#: fired on 91% of legitimate Indonesian advertisements — real Indonesian job ads
+#: give a WhatsApp number rather than an email address, so a design assumption
+#: carried over from Western/formal recruitment did not hold.
+#:
+#: Note on method: two rules (`email_domain_mismatch`, `contact_messaging_only`)
+#: showed precision 1.00 on the holdout, but each fired only twice in 195 items.
+#: Keeping just those would be selecting rules on the strength of the very set used
+#: to report results, which turns the holdout into training data. The whole layer is
+#: therefore disabled and the outcome reported as measured.
+#:
+#: Rules still RUN — their findings are returned as advisory evidence, and they stay
+#: under test. Only their effect on the score is removed. Set this back to True to
+#: restore the previous behaviour.
+RULE_LAYER_ENABLED = False
 
 
 @dataclass(frozen=True)
@@ -45,6 +75,9 @@ class ScoreBreakdown:
     rule_shift_applied: float
     contributions: dict[str, float]
     weights_version: str
+    #: False when the rule layer is advisory only — `rule_shift_applied` is 0 and
+    #: `contributions` describes what the rules found, not what moved the score.
+    rule_layer_enabled: bool = RULE_LAYER_ENABLED
 
     @property
     def was_clipped(self) -> bool:
@@ -65,7 +98,14 @@ def rule_contributions(evaluation: RuleEvaluation) -> dict[str, float]:
 
 
 def contribution_points(contributions: dict[str, float]) -> dict[str, float]:
-    """Convert probability shifts into score points, for the API response."""
+    """Convert probability shifts into score points, for the API response.
+
+    Returns zeros while the rule layer is advisory: a card reading "−9.5 pts" next to
+    a score those points did not affect would be a lie told by the interface. The
+    finding is still shown; the claim that it moved the number is not.
+    """
+    if not RULE_LAYER_ENABLED:
+        return {name: 0.0 for name in contributions}
     return {name: round(value * 100, 2) for name, value in contributions.items()}
 
 
@@ -81,8 +121,14 @@ def compute_score(
     contributions = rule_contributions(evaluation)
     raw_shift = sum(contributions.values())
 
-    # Rules push toward risk only, and never beyond the aggregate ceiling.
-    applied_shift = min(max(raw_shift, 0.0), MAX_TOTAL_RULE_SHIFT)
+    if RULE_LAYER_ENABLED:
+        # Rules push toward risk only, and never beyond the aggregate ceiling.
+        applied_shift = min(max(raw_shift, 0.0), MAX_TOTAL_RULE_SHIFT)
+    else:
+        # Advisory mode: the rules still report what they found, but the score is
+        # the calibrated model probability alone. See RULE_LAYER_ENABLED above for
+        # the measurements behind this.
+        applied_shift = 0.0
 
     fused = min(max(model_probability + applied_shift, 0.0), 1.0)
     score = round((1.0 - fused) * 100)
@@ -99,14 +145,41 @@ def compute_score(
     )
 
 
-def label_for_score(score: int, thresholds: dict[str, int] | None = None) -> RiskLabel:
-    """Map a score to Rendah / Sedang / Tinggi.
+THRESHOLDS_PATH = Path(os.environ.get("TELITI_THRESHOLDS", "artifacts/thresholds.json"))
 
-    Thresholds come from `artifacts/thresholds.json`, derived from a precision target
-    on the fraud class (step 3.2). The placeholder values are round numbers and are
-    NOT a defensible choice — section 3.3 is explicit that they must not be arbitrary.
+
+@lru_cache(maxsize=1)
+def load_thresholds(path: str = str(THRESHOLDS_PATH)) -> tuple[dict[str, int], bool]:
+    """Return (bounds, fitted). `fitted` is False when falling back to placeholders.
+
+    Derived boundaries come from `ml/fit_thresholds.py`, which picks them from a
+    precision target on the scam class and a recall target on the safe class rather
+    than round numbers — concept paper §3.3 is explicit that they must not be
+    arbitrary. The placeholders are exactly the arbitrary choice it warns against, so
+    the caller can tell the two apart and `/health` reports which is in use.
     """
-    bounds = thresholds or PLACEHOLDER_THRESHOLDS
+    file = Path(path)
+    if not file.is_file():
+        return dict(PLACEHOLDER_THRESHOLDS), False
+    try:
+        data = json.loads(file.read_text(encoding="utf-8"))
+        bounds = {
+            "tinggi_below": int(data["tinggi_below"]),
+            "rendah_at_or_above": int(data["rendah_at_or_above"]),
+        }
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        # A malformed file must not silently degrade to arbitrary numbers without
+        # the caller being able to notice.
+        return dict(PLACEHOLDER_THRESHOLDS), False
+
+    if not 0 <= bounds["tinggi_below"] <= bounds["rendah_at_or_above"] <= 100:
+        return dict(PLACEHOLDER_THRESHOLDS), False
+    return bounds, True
+
+
+def label_for_score(score: int, thresholds: dict[str, int] | None = None) -> RiskLabel:
+    """Map a score to Rendah / Sedang / Tinggi."""
+    bounds = thresholds if thresholds is not None else load_thresholds()[0]
     if score < bounds["tinggi_below"]:
         return RiskLabel(RISK_TINGGI)
     if score >= bounds["rendah_at_or_above"]:

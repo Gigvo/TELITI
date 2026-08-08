@@ -18,13 +18,22 @@ ENDPOINT = "/api/v1/analyze"
 # --- health -----------------------------------------------------------------
 
 
-def test_health_reports_stub_state(client):
+def test_health_reports_the_real_model_is_loaded(client):
+    """Inverted at step 2.5, when the stub was replaced by the trained model.
+
+    Until then this asserted `model_loaded is False`, which was how anyone could tell
+    a real demo from a fake one. Now the same flag proves the opposite: if this fails,
+    the artefacts are missing and the service is degraded.
+    """
     response = client.get("/health")
     assert response.status_code == 200
     body = response.json()
+    assert body["model_loaded"] is True, (
+        "artifacts/scam_model missing — copy it from the training machine"
+    )
     assert body["status"] == "ok"
-    # Day 1: no real model. This flag is how anyone tells a real demo from a fake one.
-    assert body["model_loaded"] is False
+    assert body["thresholds_loaded"] is True, "run: python ml/fit_thresholds.py"
+    assert not body["model_version"].startswith("stub")
 
 
 def test_openapi_schema_is_served(client):
@@ -154,3 +163,79 @@ def test_unicode_and_emoji_do_not_break_spans(client):
     parsed = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": text}).json())
     for evidence in parsed.sentence_evidence:
         assert text[evidence.span.start : evidence.span.end] == evidence.text
+
+
+# ===========================================================================
+# Real model inference — MVP_PLAN.md step 2.5
+# ===========================================================================
+
+
+def test_score_comes_from_the_model_not_a_hash(client, scam_text, legit_text):
+    """The stub derived scores from a SHA-256 of the text, so any two different
+    strings produced unrelated numbers. A real model must separate a blatant scam
+    from a clean posting."""
+    scam = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": scam_text}).json())
+    legit = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": legit_text}).json())
+    assert scam.integrity_score < legit.integrity_score, (
+        f"scam scored {scam.integrity_score}, legitimate ad scored "
+        f"{legit.integrity_score} — the model is not separating them"
+    )
+
+
+def test_paper_scenario_is_flagged_high_risk(client, scam_text):
+    """The concept paper's own §3.4 example. This is the demo; it must not regress."""
+    body = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": scam_text}).json())
+    assert body.risk_label.value == "Tinggi"
+
+
+def test_legitimate_posting_is_not_flagged_high_risk(client, legit_text):
+    """The false-positive guard §3.6 treats as the expensive error."""
+    body = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": legit_text}).json())
+    assert body.risk_label.value != "Tinggi"
+
+
+def test_model_probability_is_calibrated_not_saturated(client, scam_text):
+    """With the EMSCAD calibrator every Indonesian ad scored 93-100, because the
+    model carried a 4.8% base rate into a domain where scams are far more common.
+    A deployment-calibrated probability must use the range."""
+    body = AnalyzeResponse.model_validate(client.post(ENDPOINT, json={"text": scam_text}).json())
+    assert 0.0 <= body.model_probability <= 1.0
+    assert body.integrity_score < 90, (
+        f"score {body.integrity_score} suggests the EMSCAD calibrator is in use; "
+        f"run python ml/fit_thresholds.py to produce calibrator_deployment.json"
+    )
+
+
+def test_identical_text_scores_identically(client, scam_text):
+    """Inference must be deterministic — the model is in eval mode, no dropout."""
+    first = client.post(ENDPOINT, json={"text": scam_text}).json()
+    second = client.post(ENDPOINT, json={"text": scam_text}).json()
+    assert first["integrity_score"] == second["integrity_score"]
+    assert first["model_probability"] == second["model_probability"]
+
+
+def test_sentence_evidence_is_marked_approximate(client, scam_text):
+    """It is keyword matching, not model occlusion (step 3.4). The response must say
+    so, or the UI implies the model pointed at those sentences when it did not."""
+    body = client.post(ENDPOINT, json={"text": scam_text}).json()
+    assert body["sentence_evidence_approximate"] is True
+
+
+def test_unavailable_model_returns_503_not_a_fake_score(monkeypatch, scam_text):
+    """If the artefacts fail to load, the service must refuse to answer rather than
+    inventing a number. A 503 is recoverable; a fabricated score is not."""
+    from fastapi.testclient import TestClient
+
+    import api.main as main
+
+    class _Unloaded:
+        is_loaded = False
+        info = type("I", (), {"loaded": False, "version": "unloaded",
+                              "calibrator": "none", "max_length": 256,
+                              "device": "none", "error": "simulated"})()
+
+    monkeypatch.setattr(main, "scam_model", _Unloaded())
+    with TestClient(main.app) as unloaded_client:
+        response = unloaded_client.post(ENDPOINT, json={"text": scam_text})
+    assert response.status_code == 503
+    assert "not available" in response.json()["detail"].lower()

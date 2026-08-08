@@ -211,6 +211,20 @@ class AnalyzeResponse(BaseModel):
     summary: str = Field(description="Narrative explanation in Indonesian.")
     sentence_evidence: list[SentenceEvidence] = Field(default_factory=list)
     rule_hits: list[RuleHit] = Field(default_factory=list)
+    sentence_evidence_approximate: bool = Field(
+        default=True,
+        description="True while `sentence_evidence` is produced by keyword matching "
+        "rather than model occlusion (step 3.4 replaces it). The UI must not present "
+        "these as the sentences the model reacted to — it did not point at them.",
+    )
+    rule_layer_enabled: bool = Field(
+        default=True,
+        description="False when the rule layer is ADVISORY: its findings are shown "
+        "but did not affect the score, and every `contribution` is 0.0. Disabled on "
+        "measured evidence — the rules cost 0.064 PR-AUC and five times the false "
+        "positives on the Indonesian holdout. The UI must not present advisory "
+        "findings as if they moved the number.",
+    )
     extracted_fields: ExtractedFields = Field(default_factory=ExtractedFields)
 
     analysed_text: str = Field(

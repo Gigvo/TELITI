@@ -24,6 +24,21 @@ def evaluate(text: str):
     return default_engine().evaluate(ingest(text))
 
 
+@pytest.fixture
+def rules_enabled(monkeypatch):
+    """Re-enable the rule layer for tests of the fusion MECHANISM.
+
+    The layer ships disabled (`api/scoring.py::RULE_LAYER_ENABLED`) because it made
+    the product measurably worse on real Indonesian data. The arithmetic still has to
+    be correct, though — the flag may be flipped back, and a broken mechanism hiding
+    behind a disabled flag is worse than a broken mechanism in plain sight.
+    """
+    import api.scoring as scoring
+
+    monkeypatch.setattr(scoring, "RULE_LAYER_ENABLED", True)
+    return scoring
+
+
 # ===========================================================================
 # Weights
 # ===========================================================================
@@ -83,7 +98,7 @@ def test_score_matches_the_paper_formula(scam_text):
     assert breakdown.integrity_score == round((1 - breakdown.fused_probability) * 100)
 
 
-def test_rules_only_push_toward_risk(legit_text):
+def test_rules_only_push_toward_risk(rules_enabled, legit_text):
     """A clean ad gets no bonus. Its score is whatever the model said.
 
     A rule layer able to RAISE a score would let a well-formatted scam suppress a
@@ -94,7 +109,7 @@ def test_rules_only_push_toward_risk(legit_text):
     assert breakdown.fused_probability >= 0.3
 
 
-def test_fired_rules_lower_the_score(scam_text):
+def test_fired_rules_lower_the_score(rules_enabled, scam_text):
     with_rules = compute_score(0.5, evaluate(scam_text))
     assert with_rules.fused_probability > 0.5
     assert with_rules.integrity_score < 50
@@ -123,7 +138,7 @@ def _all_rules_maxed():
     )
 
 
-def test_worst_case_shift_reaches_but_never_passes_the_ceiling():
+def test_worst_case_shift_reaches_but_never_passes_the_ceiling(rules_enabled):
     """Every rule firing at full severity must land exactly at the budget.
 
     Weights sum to MAX_TOTAL_RULE_SHIFT, so this case is not clipped — it is the
@@ -135,7 +150,7 @@ def test_worst_case_shift_reaches_but_never_passes_the_ceiling():
     assert not breakdown.was_clipped
 
 
-def test_aggregate_shift_is_clipped_if_weights_ever_go_over_budget(monkeypatch):
+def test_aggregate_shift_is_clipped_if_weights_ever_go_over_budget(rules_enabled, monkeypatch):
     """The clamp is the backstop for a future weight change slipping past review."""
     import ml.rule_weights as rw
 
@@ -167,14 +182,66 @@ def test_unavailable_signals_contribute_nothing():
     assert compute_score(0.5, redacted).contributions == {}
 
 
-def test_contribution_points_are_score_scale():
+def test_contribution_points_are_score_scale(rules_enabled):
     contributions = {"payment_request_id": 0.09}
     assert contribution_points(contributions) == {"payment_request_id": 9.0}
 
 
 # ===========================================================================
+# Advisory mode — the shipped configuration
+# ===========================================================================
+#
+# Measured on the 195-item Indonesian holdout:
+#   model only     PR-AUC 0.9258   5 false positives
+#   model + rules  PR-AUC 0.8617  28 false positives
+# The rule layer is therefore disabled. These tests pin that behaviour so it cannot
+# be switched back on by accident.
+
+
+def test_rules_do_not_move_the_score_when_disabled(scam_text):
+    """The shipped default: the score is the model probability, untouched."""
+    breakdown = compute_score(0.5, evaluate(scam_text))
+    assert breakdown.rule_layer_enabled is False
+    assert breakdown.rule_shift_applied == 0.0
+    assert breakdown.fused_probability == pytest.approx(0.5)
+    assert breakdown.integrity_score == 50
+
+
+def test_rules_still_report_what_they_found(scam_text):
+    """Disabled means 'does not move the score', not 'stops looking'.
+
+    The findings remain available as advisory evidence — a user is still told the ad
+    demands an up-front payment, they are just not told it changed the number.
+    """
+    breakdown = compute_score(0.5, evaluate(scam_text))
+    assert breakdown.contributions, "rules should still evaluate and report"
+    assert breakdown.rule_shift_raw > 0.0, "raw shift is still computed"
+
+
+def test_advisory_contributions_are_reported_as_zero(scam_text):
+    """A card reading "−9.5 pts" beside a score those points did not affect would be
+    a lie told by the interface."""
+    hits = evaluate(scam_text).to_rule_hits()
+    assert hits, "expected the paper's scenario to fire rules"
+    assert all(h.contribution == 0.0 for h in hits)
+    assert contribution_points({"payment_request_id": 0.09}) == {"payment_request_id": 0.0}
+
+
+def test_api_reports_the_advisory_state(client, scam_text):
+    body = client.post("/api/v1/analyze", json={"text": scam_text}).json()
+    assert body["rule_layer_enabled"] is False
+    assert all(h["contribution"] == 0.0 for h in body["rule_hits"])
+
+
+# ===========================================================================
 # Labels
 # ===========================================================================
+
+
+#: Explicit bounds so these tests check the MAPPING LOGIC rather than whichever
+#: numbers `ml/fit_thresholds.py` last produced. The fitted values move whenever the
+#: model or the holdout changes; the logic must not.
+_BOUNDS = {"tinggi_below": 40, "rendah_at_or_above": 70}
 
 
 @pytest.mark.parametrize(
@@ -183,13 +250,60 @@ def test_contribution_points_are_score_scale():
      (69, RiskLabel.SEDANG), (70, RiskLabel.RENDAH), (100, RiskLabel.RENDAH)],
 )
 def test_label_boundaries(score, expected):
-    assert label_for_score(score) == expected
+    assert label_for_score(score, _BOUNDS) == expected
 
 
 def test_label_is_monotonic_in_score():
     order = {RiskLabel.TINGGI: 0, RiskLabel.SEDANG: 1, RiskLabel.RENDAH: 2}
-    ranks = [order[label_for_score(s)] for s in range(101)]
+    ranks = [order[label_for_score(s, _BOUNDS)] for s in range(101)]
     assert ranks == sorted(ranks)
+
+
+def test_shipped_thresholds_are_fitted_not_placeholders():
+    """§3.3 requires derived boundaries, not round numbers.
+
+    If this fails, `artifacts/thresholds.json` is missing or malformed and the
+    service has silently fallen back to the arbitrary placeholders the concept paper
+    argues against.
+    """
+    from api.scoring import load_thresholds
+
+    bounds, fitted = load_thresholds()
+    assert fitted, "run: python ml/fit_thresholds.py"
+    assert 0 <= bounds["tinggi_below"] < bounds["rendah_at_or_above"] <= 100
+
+
+def test_fitted_thresholds_leave_a_usable_sedang_band():
+    """A Sedang band one point wide would make the middle label meaningless.
+
+    This is not hypothetical: with the EMSCAD calibrator the bands came out as
+    Tinggi<98 / Sedang 98..98 / Rendah>=99, because the model's probabilities were
+    all crushed near zero on Indonesian input.
+    """
+    from api.scoring import load_thresholds
+
+    bounds, _ = load_thresholds()
+    width = bounds["rendah_at_or_above"] - bounds["tinggi_below"]
+    assert width >= 10, f"Sedang band is only {width} points wide"
+
+
+def test_malformed_threshold_file_falls_back_visibly(tmp_path):
+    """A broken file must not silently become arbitrary numbers."""
+    from api.scoring import load_thresholds
+
+    bad = tmp_path / "thresholds.json"
+    bad.write_text("{not json", encoding="utf-8")
+    bounds, fitted = load_thresholds(str(bad))
+    assert fitted is False
+    assert bounds == {"tinggi_below": 40, "rendah_at_or_above": 70}
+
+
+def test_inverted_thresholds_are_rejected(tmp_path):
+    from api.scoring import load_thresholds
+
+    bad = tmp_path / "thresholds.json"
+    bad.write_text(json.dumps({"tinggi_below": 90, "rendah_at_or_above": 20}), encoding="utf-8")
+    assert load_thresholds(str(bad))[1] is False
 
 
 # ===========================================================================
@@ -270,10 +384,36 @@ def test_id_and_synthetic_flag_must_agree(tmp_path):
         load_eval_set(write_jsonl(tmp_path / "f.jsonl", [bad]))
 
 
-def test_real_item_requires_independent_labels(tmp_path):
-    bad = {k: v for k, v in REAL_LINE.items() if k not in ("label_a", "label_b")}
-    with pytest.raises(EvalSetError, match="kappa"):
-        load_eval_set(write_jsonl(tmp_path / "f.jsonl", [bad]))
+def test_single_pass_labelling_is_accepted(tmp_path):
+    """The dataset is labelled once from provenance, not by two annotators.
+
+    Independent double-annotation was the original design; it was dropped when the
+    holdout was collected, and `ml/validate_eval_set.py` documents why kappa is
+    reported as n/a rather than faked. The loader must accept that shape.
+    """
+    single = {k: v for k, v in REAL_LINE.items() if k not in ("label_a", "label_b")}
+    result = load_eval_set(write_jsonl(tmp_path / "f.jsonl", [single]))
+    assert len(result) == 1
+    assert result.items[0].label_a is None
+
+
+def test_item_with_no_provenance_at_all_is_rejected(tmp_path):
+    """A public link OR a note explaining a privately received message. Neither
+    means the item cannot be traced back to anything."""
+    orphan = {k: v for k, v in REAL_LINE.items() if k not in ("label_a", "label_b")}
+    orphan["source_url"] = ""
+    orphan.pop("notes", None)
+    with pytest.raises(EvalSetError, match="provenance"):
+        load_eval_set(write_jsonl(tmp_path / "f.jsonl", [orphan]))
+
+
+def test_personally_received_message_needs_only_notes(tmp_path):
+    """WhatsApp ads a team member received have no URL — these are among the most
+    valuable items, being exactly the input the product is built for."""
+    received = {k: v for k, v in REAL_LINE.items() if k not in ("label_a", "label_b")}
+    received["source_url"] = None
+    received["notes"] = "User-provided WhatsApp job ad, received personally."
+    assert len(load_eval_set(write_jsonl(tmp_path / "f.jsonl", [received]))) == 1
 
 
 def test_disagreement_requires_a_resolver(tmp_path):

@@ -92,8 +92,21 @@ class RuleEvaluation:
         )
 
     def to_rule_hits(self, contributions: dict[str, float] | None = None) -> list[RuleHit]:
-        """Fired rules only, as API objects, strongest first."""
-        weights = contributions if contributions is not None else PLACEHOLDER_CONTRIBUTION_POINTS
+        """Fired rules only, as API objects, strongest first.
+
+        When the rule layer is advisory (`api/scoring.py::RULE_LAYER_ENABLED`), every
+        contribution is reported as 0.0 — the findings are real, but they did not
+        move the score, and the response must not imply otherwise.
+        """
+        from api.scoring import RULE_LAYER_ENABLED  # local import: avoids a cycle
+
+        if not RULE_LAYER_ENABLED:
+            weights = {name: 0.0 for name in RULE_FEATURE_ORDER}
+        elif contributions is not None:
+            weights = contributions
+        else:
+            weights = PLACEHOLDER_CONTRIBUTION_POINTS
+
         hits = [
             RuleHit(
                 rule_id=outcome.feature_id,
@@ -108,7 +121,9 @@ class RuleEvaluation:
             for outcome in self.outcomes.values()
             if outcome.fired
         ]
-        hits.sort(key=lambda h: h.contribution, reverse=True)
+        # Severity is the tiebreak: with contributions zeroed in advisory mode, it is
+        # the only thing left that ranks the findings by how notable they are.
+        hits.sort(key=lambda h: (h.contribution, h.severity), reverse=True)
         return hits
 
     @property

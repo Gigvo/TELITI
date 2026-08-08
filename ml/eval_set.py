@@ -30,15 +30,26 @@ from typing import Any, Iterator
 DEFAULT_HOLDOUT = Path("eval/indonesian_holdout.jsonl")
 DEFAULT_FIXTURE = Path("eval/synthetic_fixture.jsonl")
 
-REQUIRED_FIELDS = (
-    "id", "text", "label", "source_url", "source_type", "channel",
-    "annotator_a", "annotator_b", "collected_at",
-)
+#: The dataset is labelled SINGLE-PASS from provenance (the `label` field), not by
+#: two independent annotators. `annotator_a` / `annotator_b` / `collected_at` are
+#: therefore optional rather than required, and Cohen's kappa is reported as n/a
+#: rather than faked — see the note in `ml/validate_eval_set.py`.
+#:
+#: The trade-off is explicit: provenance labelling trusts the sourcing rather than
+#: two humans agreeing. If an item was mis-sourced, nothing here catches it.
+REQUIRED_FIELDS = ("id", "text", "label", "source_type", "channel")
+
+#: `source_url` is required for anything found in public — it is what makes an item
+#: evidence rather than assertion. But some of the most valuable items are messages a
+#: team member received personally on WhatsApp: there is no link, and those are
+#: exactly the input the product is built for. For those, provenance must be recorded
+#: in `notes` instead. One or the other is mandatory; neither is not acceptable.
+PROVENANCE_FIELDS = ("source_url", "notes")
 
 VALID_SOURCE_TYPES = frozenset({
     "bareskrim", "kominfo", "media", "watchdog_account", "community_report",
     "jobstreet", "glints", "kalibrr", "karir_com", "campus_career",
-    "company_official", "synthetic",
+    "company_official", "job_board", "synthetic",
 })
 
 VALID_CHANNELS = frozenset({
@@ -65,12 +76,15 @@ class EvalItem:
     id: str
     text: str
     label: int
-    source_url: str
     source_type: str
     channel: str
-    annotator_a: str
-    annotator_b: str
-    collected_at: str
+    # Optional: personally received messages have no public link, so provenance is
+    # carried in `notes` instead. See PROVENANCE_FIELDS above.
+    source_url: str | None = None
+    # Optional under single-pass provenance labelling — see REQUIRED_FIELDS above.
+    annotator_a: str | None = None
+    annotator_b: str | None = None
+    collected_at: str | None = None
     label_a: int | None = None
     label_b: int | None = None
     resolved_by: str | None = None
@@ -141,6 +155,14 @@ def _validate_item(raw: dict[str, Any], line_no: int) -> list[str]:
     if problems:
         return problems
 
+    # Provenance: a public link, or a note explaining where a privately received
+    # message came from. An item with neither cannot be traced back to anything.
+    if not any(str(raw.get(field) or "").strip() for field in PROVENANCE_FIELDS):
+        problems.append(
+            f"line {line_no}: needs either 'source_url' (public items) or 'notes' "
+            f"describing provenance (personally received messages)"
+        )
+
     if raw["label"] not in (0, 1):
         problems.append(f"line {line_no}: label must be 0 or 1, got {raw['label']!r}")
     if len(str(raw["text"])) < MIN_TEXT_LENGTH:
@@ -161,20 +183,18 @@ def _validate_item(raw: dict[str, Any], line_no: int) -> list[str]:
             f"in every downstream artefact."
         )
 
-    if not is_synthetic:
-        # Real items must carry independent labels, or kappa cannot be computed and
-        # the annotation quality is unverifiable.
+    # Independent double-annotation is OPTIONAL under single-pass provenance
+    # labelling. When both labels are present they are still checked for
+    # consistency, so a partially double-annotated file keeps its guarantees; when
+    # they are absent, Cohen's kappa is reported as n/a rather than fabricated.
+    if raw.get("label_a") is not None and raw.get("label_b") is not None:
         for name in ("label_a", "label_b"):
-            if raw.get(name) not in (0, 1):
-                problems.append(
-                    f"line {line_no}: {name} must be 0 or 1 on a real item "
-                    f"(needed for Cohen's kappa)"
-                )
-        if raw.get("label_a") is not None and raw.get("label_b") is not None:
-            if raw["label_a"] != raw["label_b"] and not raw.get("resolved_by"):
-                problems.append(
-                    f"line {line_no}: annotators disagree but resolved_by is empty"
-                )
+            if raw[name] not in (0, 1):
+                problems.append(f"line {line_no}: {name} must be 0 or 1, got {raw[name]!r}")
+        if raw["label_a"] != raw["label_b"] and not raw.get("resolved_by"):
+            problems.append(
+                f"line {line_no}: annotators disagree but resolved_by is empty"
+            )
 
     unknown = set(raw) - set(EvalItem.__dataclass_fields__)
     if unknown:
