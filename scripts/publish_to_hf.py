@@ -58,6 +58,47 @@ def build_model_card(repo: str) -> str:
     final = summary["final"]
     config = summary["config"]
 
+    # Held-out test results, when ml/evaluate.py has produced them. Read from the
+    # JSON twin rather than the markdown so the card cannot quote a superseded
+    # figure: the first version of this card led with the validation number,
+    # which the test run later contradicted.
+    results_path = ROOT / "eval" / "results.json"
+    held_out = None
+    if results_path.is_file():
+        data = json.loads(results_path.read_text(encoding="utf-8"))
+        if data.get("split") == "test":
+            held_out = data
+
+    if held_out:
+        transformer = held_out["transformer"]
+        baseline = held_out["baseline"]
+        test_section = f"""### EMSCAD **test** split — the honest number
+
+Scored **once**, on a split untouched by any earlier decision.
+
+| Metric | mDistilBERT | TF-IDF + LinearSVC |
+|---|---:|---:|
+| **PR-AUC** | **{transformer["pr_auc"]:.4f}** | **{baseline["pr_auc"]:.4f}** |
+| ROC-AUC | {transformer["roc_auc"]:.4f} | {baseline["roc_auc"]:.4f} |
+| Precision | {transformer["precision"]:.4f} | {baseline["precision"]:.4f} |
+| Recall | {transformer["recall"]:.4f} | {baseline["recall"]:.4f} |
+| F1 | {transformer["f1"]:.4f} | {baseline["f1"]:.4f} |
+
+**Quote {transformer["pr_auc"]:.4f}, not the validation figure.** The validation
+score was {final["pr_auc"]:.4f}, but the checkpoint was *selected* on validation,
+which makes that split an optimistic estimate. The transformer drops
+{final["pr_auc"] - transformer["pr_auc"]:.4f} PR-AUC from validation to test; the
+baseline, which involved no such selection, drops only
+{summary["baseline_pr_auc"] - baseline["pr_auc"]:.4f}.
+
+The transformer **does not beat a TF-IDF baseline on English EMSCAD.** It is used
+because TF-IDF trained on English cannot process Indonesian at all, and Indonesian
+is the deployment domain — not because of this number.
+
+"""
+    else:
+        test_section = ""
+
     return f"""---
 license: mit
 language:
@@ -98,7 +139,10 @@ Two evaluations on two datasets. **The numbers are not comparable to each
 other** — PR-AUC scales with how common the positive class is, so the higher
 number is not evidence of a better model.
 
-### EMSCAD validation (English, {final["n"]:,} items, {final["n_positive"] / final["n"]:.1%} scams)
+{test_section}### EMSCAD validation (English, {final["n"]:,} items, {final["n_positive"] / final["n"]:.1%} scams)
+
+Reported for completeness. The checkpoint was selected here, so these are
+optimistic — see the test figures above.
 
 | Metric | Value |
 |---|---|
@@ -109,10 +153,6 @@ number is not evidence of a better model.
 | Recall | {final["recall"]:.4f} |
 | F1 | {final["f1"]:.4f} |
 | Brier score | {final["brier"]:.4f} |
-
-The transformer **did not beat a TF-IDF baseline** on English EMSCAD
-({final["pr_auc"]:.4f} vs {summary["baseline_pr_auc"]:.4f}). This is stated
-plainly rather than omitted.
 
 Accuracy is {final["accuracy"]:.1%} and is **misleading** — at
 {final["n_positive"] / final["n"]:.1%} prevalence, predicting "not a scam" for

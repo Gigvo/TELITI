@@ -17,11 +17,20 @@ services:
       # Where the built React bundle lives inside the image.
       TELITI_STATIC_DIR: /app/web_dist
     volumes:
-      # Model artifacts are mounted, not baked in: the image stays small and
-      # reproducible, and a retrained model is a restart rather than a rebuild.
-      # Read-only — the service must never write to them.
-      - ./artifacts:/app/artifacts:ro
-      # Locale resources. Mounted so Indonesian can be added without rebuilding:
-      # drop the files in and restart (see docs/LOCALES.md).
+      # Locale resources. Mounted so a lexicon or UMK table can be corrected
+      # without rebuilding: edit the file and restart (see docs/LOCALES.md).
       - ./data/reference:/app/data/reference:ro
+
+      # NOTE: artifacts/ is deliberately NOT mounted.
+      #
+      # It used to be, back when the image did not contain the weights. The
+      # Dockerfile now bakes them in, and mounting over /app/artifacts would
+      # shadow that copy with whatever happens to be on the host — on a fresh
+      # clone, an almost-empty directory. The container would start, serve the
+      # UI, report model_loaded=false and return 503 from every analysis, with
+      # the weights sitting unreachable inside the image the whole time.
+      #
+      # To serve a retrained model without rebuilding, point it at the Hub
+      # instead:  TELITI_MODEL_REPO=<user>/<repo>
+
     restart: unless-stopped

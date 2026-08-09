@@ -42,6 +42,13 @@ onnxruntime>=1.20
 torch>=2.6
 transformers>=5.0
 
+# Declared explicitly even though transformers pulls it in. api/artifacts.py
+# imports it directly to fetch the weights when artifacts/ is absent, which is
+# the path a fresh clone takes — depending on it arriving as somebody else's
+# transitive dependency means a transformers release could break model loading
+# with an ImportError that names a package nobody chose to install.
+huggingface_hub>=0.30
+
 # --- Dev / test ---
 # Installed in the Docker image too. `httpx` is small and FastAPI's TestClient
 # needs it; `pytest` is ~5 MB and lets the container self-verify. Move both to a
@@ -50,6 +57,12 @@ transformers>=5.0
 # more than the megabytes.
 pytest>=8.0
 httpx>=0.28
+
+# --- Optional ---
+# imbalanced-learn provides SMOTE for the TF-IDF baseline ablation
+# (eval/baseline_results.md). ml/train_baseline.py guards the import and skips
+# that one model when it is absent, so serving never needs it.
+# imbalanced-learn>=0.13
 
 # --- Training box only (do NOT install on the CPU serving box) ---
 # datasets

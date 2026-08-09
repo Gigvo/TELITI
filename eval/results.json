@@ -1,0 +1,68 @@
+{
+  "split": "test",
+  "generated_at": "2026-08-09T08:36:13+00:00",
+  "git_sha": "e0c40dd",
+  "transformer": {
+    "name": "mdistilbert (calibrated)",
+    "n": 1788,
+    "n_positive": 86,
+    "pr_auc": 0.7882907000326826,
+    "roc_auc": 0.9647063646052524,
+    "precision": 0.9272727272727272,
+    "recall": 0.5930232558139535,
+    "f1": 0.723404255319149,
+    "threshold": 0.9325961801863204,
+    "accuracy": 0.9781879194630873,
+    "accuracy_is_misleading": true,
+    "brier": 0.022598135697575253,
+    "true_negatives": 1698,
+    "false_positives": 4,
+    "false_negatives": 35,
+    "true_positives": 51,
+    "notes": []
+  },
+  "baseline": {
+    "name": "tfidf+linearsvc",
+    "n": 1788,
+    "n_positive": 86,
+    "pr_auc": 0.865087656427995,
+    "roc_auc": 0.983945016806493,
+    "precision": 0.8461538461538461,
+    "recall": 0.7674418604651163,
+    "f1": 0.8048780487804879,
+    "threshold": 0.3508275630501021,
+    "accuracy": 0.9821029082774049,
+    "accuracy_is_misleading": true,
+    "brier": 0.01499722405806798,
+    "true_negatives": 1690,
+    "false_positives": 12,
+    "false_negatives": 20,
+    "true_positives": 66,
+    "notes": []
+  },
+  "calibration": {
+    "brier_raw": 0.02495304025394154,
+    "brier_cal": 0.022598135697575253,
+    "ece_raw": 0.02336246514460072,
+    "ece_cal": 0.015796133629059017
+  },
+  "latency_ms": {
+    "score_only": {
+      "p50": 85.93975000007958,
+      "p95": 99.20572000003176,
+      "p99": 102.97726500006775,
+      "mean": 87.50947333336019
+    },
+    "with_occlusion": {
+      "p50": 469.41175000006297,
+      "p95": 949.2052950002972,
+      "p99": 992.2019700000692,
+      "mean": 557.7256533333184
+    }
+  },
+  "indonesian": {
+    "n": 195,
+    "prevalence": 0.3641025641025641,
+    "pr_auc": 0.9258
+  }
+}

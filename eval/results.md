@@ -1,6 +1,6 @@
 # TELITI — final evaluation
 
-Generated 2026-08-08 17:00 UTC from commit `27a4a5a` by `ml/evaluate.py`.
+Generated 2026-08-09 08:36 UTC from commit `e0c40dd` by `ml/evaluate.py`.
 
 **Every number quoted in the paper, pitch or demo must appear here** (MVP_PLAN.md Gate 4.2). If a figure is not in this file, it is not a result.
 
@@ -101,8 +101,8 @@ CPU, single request, 30 samples, through the serving path (`api.model` + `api.ex
 
 | Path | p50 | p95 | p99 | mean |
 |---|---:|---:|---:|---:|
-| score only | 89 ms | 118 ms | 129 ms | 92 ms |
-| score + occlusion | 519 ms | 1026 ms | 1099 ms | 589 ms |
+| score only | 86 ms | 99 ms | 103 ms | 88 ms |
+| score + occlusion | 469 ms | 949 ms | 992 ms | 558 ms |
 
 The product always pays the occlusion cost — evidence is not optional in the UI — so the second row is the number that matters. Occlusion runs one extra forward pass per sentence, capped at 12.
 
@@ -154,4 +154,4 @@ A jobseeker sees reassurance where there should be a warning.
 python ml/evaluate.py --split test
 ```
 
-Model: `Gigvo/teliti-job-scam-mdistilbert` · max_length 256 · commit `27a4a5a`
+Model: `artifacts\scam_model` · max_length 256 · commit `e0c40dd`

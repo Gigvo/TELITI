@@ -259,7 +259,7 @@ Check your §1.5, §3.5 and any architecture figure for the word ONNX.
 
 > Model dilayani langsung menggunakan PyTorch pada CPU. Kuantisasi INT8 melalui
 > ONNX Runtime direncanakan sebagai optimisasi, namun tidak diperlukan: latensi
-> terukur sudah memenuhi anggaran interaktif (p50 519 ms termasuk pembangkitan
+> terukur sudah memenuhi anggaran interaktif (p50 469 ms termasuk pembangkitan
 > penjelasan, lihat §Hasil). Optimisasi ini dicatat sebagai pekerjaan lanjutan
 > apabila beban meningkat.
 
@@ -466,11 +466,18 @@ control now scores 0,3734, barely above the 0,3641 prevalence floor.
 >
 > | Jalur | p50 | p95 | p99 |
 > |---|---:|---:|---:|
-> | skor saja | 89 ms | 118 ms | 129 ms |
-> | skor + penjelasan | 519 ms | 1.026 ms | 1.099 ms |
+> | skor saja | 86 ms | 99 ms | 103 ms |
+> | skor + penjelasan | 469 ms | 949 ms | 992 ms |
 >
 > Baris kedua adalah angka yang relevan: penjelasan tidak bersifat opsional pada
 > antarmuka.
+
+⚠️ **State the hardware, and treat these as approximate.** Unlike the accuracy
+figures — which are deterministic and reproduce to four decimal places on every
+run — latency is wall-clock and moves with machine load. Two runs minutes apart
+gave p50 519 ms and 469 ms on the same laptop. Quote the figures currently in
+`eval/results.md`, round them, and name the CPU you measured on. Do not present
+them to three significant figures as though they were exact.
 
 ### B1.8 Error analysis — write this from the real data
 
@@ -648,8 +655,8 @@ Every figure you may quote. If it is not here, it is not a result.
 | Ablation: rules only | 0,4167 PR-AUC, 93 FP | same |
 | ECE raw → calibrated | 0,0234 → 0,0158 | `eval/results.md` §2 |
 | Brier raw → calibrated | 0,0250 → 0,0226 | same |
-| Latency, score only (p50/p95) | 89 / 118 ms | `eval/results.md` §4 |
-| Latency, with explanation (p50/p95) | 519 / 1.026 ms | same |
+| Latency, score only (p50/p95) | 86 / 99 ms | `eval/results.md` §4 |
+| Latency, with explanation (p50/p95) | 469 / 949 ms | same |
 | Risk band boundaries | Tinggi <67, Rendah ≥93 | `artifacts/thresholds.json` |
 | Real emails in corpus | 0,02% | `eval/derivability_report.md` |
 | Class skew in signal availability | 74,8% vs 67,9% | same |

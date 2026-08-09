@@ -569,6 +569,29 @@ def main() -> int:
     args.out.write_text(content, encoding="utf-8")
     print(f"\nWrote {args.out} ({len(content):,} chars)")
 
+    # Machine-readable twin. The Hugging Face model card is generated from this
+    # rather than from the markdown, so the published card and this report cannot
+    # disagree — the alternative is hand-copying numbers between them, which is
+    # exactly how a card ends up quoting a superseded figure.
+    summary_path = args.out.with_suffix(".json")
+    summary_path.write_text(
+        json.dumps(
+            {
+                "split": args.split,
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "git_sha": git_sha(),
+                "transformer": emscad.as_dict(),
+                "baseline": baseline.as_dict(),
+                "calibration": {k: v for k, v in calibration.items() if k != "reliability"},
+                "latency_ms": latency,
+                "indonesian": indonesian,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Wrote {summary_path}")
+
     if args.split == "test":
         CONSUMED_MARKER.write_text(
             f"Evaluated {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n"
